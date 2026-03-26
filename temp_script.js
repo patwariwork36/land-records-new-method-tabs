@@ -1,0 +1,2119 @@
+        // Direct URL (kept for reference; fetching via proxy chain below)
+        // const CSV_URL = "...";
+
+        let records = [];
+        let currentTab = 'khasra';
+
+        // ── Halka Mapping ──────────────────────────────
+        const HALKA_MAP = {
+            'गबौद': 43, 'तिल्दा': 43,
+            'छड़िया': 28, 'छेरकापुर': 28
+        };
+        function getHalka(village) {
+            const h = HALKA_MAP[village];
+            return h ? `हल्का ${h}` : '';
+        }
+
+        // ── Toast ──────────────────────────────────────
+        function toast(msg, type = 'success') {
+            const bg = { success: 'linear-gradient(to right,#059669,#047857)', error: 'linear-gradient(to right,#dc2626,#b91c1c)', info: 'linear-gradient(to right,#2563eb,#1a1a6e)' };
+            Toastify({ text: msg, duration: 3500, gravity: 'top', position: 'right', style: { background: bg[type] || bg.info, borderRadius: '10px', fontWeight: '700', fontSize: '14px' } }).showToast();
+        }
+
+        // ── CSV Loader ─────────────────────────────────────────────
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7w0RI9RMbD3vx841C6CHzFyHwwbX2L5zyhjabc2ov7AvR7OWzJfXgvbiPvV6oXvhJZj5RCmcOzq2r/pub?gid=1438447251&single=true&output=csv";
+
+        function processCSVResults(results) {
+            if (!results.data || results.data.length === 0) return false;
+            
+            // Log first data row to find exact duplicate column keys
+            if (results.data.length > 1) console.log('Column keys:', Object.keys(results.data[1]));
+
+            records = results.data.map((o, i) => {
+                // owner: raw CSV value (full, for display in khasra/basra results)
+                let ownerRaw = o['भूमिस्वामी का नाम'] || 'अज्ञात';
+                // ownerKey: cleaned single-line (normalized spaces, for search & escJS)
+                let ownerKey = ownerRaw.replace(/\r/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                // ownerNames: all individual names extracted (for naam search datalist & matching)
+                const nameMatches = [...ownerRaw.matchAll(/नाम\s*[-–]\s*([^\n\r]+)/g)];
+                let ownerNames = nameMatches.map(m => m[1].trim()).filter(Boolean);
+                if (ownerNames.length === 0) {
+                    // Fallback: use first line without leading (1) prefix
+                    const fallback = ownerRaw.split(/\r?\n/)[0].replace(/^\(\d+\)/, '').trim();
+                    if (fallback) ownerNames = [fallback];
+                }
+
+                let v = o['ग्राम'] || '';
+                if (v === 'गबौद' || v === 'तिल्दा') v += ' (हल्का 43)';
+                else if (v === 'छड़िया' || v === 'छेरकापुर') v += ' (हल्का 28)';
+
+                let nistarText = o['निस्तार पत्रक विवरण'] || '';
+                
+                // ── खरीफ block (columns K, M, N, O, P, Q) ──
+                let kharifCrop    = (o['खरीफ DCS में फसल '] || '').trim();
+                let kharifCropArea = parseFloat(o['Crop Area'] || 0);   // Col M — Kharif Crop Area
+                let naLandK       = (o['NA Land'] || '').trim();          // Col N
+                let naAreaK       = parseFloat(o['NA Area'] || 0);        // Col O
+                let fallowLandK   = (o['Fallow Land'] || '').trim();      // Col P
+                let fallowAreaK   = parseFloat(o['Fallow Area'] || 0);    // Col Q
+
+                // ── रबी block (columns R, T, U, V, W, X) ──
+                let rabiCrop      = (o['रबी DCS में फसल '] || o['रबी DCS में फसल_1'] || o['रबी DCS में फसल 1'] || o['रबी DCS में फसल_R'] || '').trim();
+                let rabiCropArea  = parseFloat(o['Crop Area_1'] || o['Crop Area 1'] || o['Crop Area_R'] || 0);  // Col T — Rabi Crop Area
+                let naLandR       = (o['NA Land_1'] || o['NA Land 1'] || o['NA Land_R'] || '').trim();        // Col U
+                let naAreaR       = parseFloat(o['NA Area_1'] || o['NA Area 1'] || o['NA Area_R'] || 0);      // Col V
+                let fallowLandR   = (o['Fallow Land_1'] || o['Fallow Land 1'] || o['Fallow Land_R'] || '').trim();    // Col W
+                let fallowAreaR   = parseFloat(o['Fallow Area_1'] || o['Fallow Area 1'] || o['Fallow Area_R'] || 0);  // Col X
+
+                // --- New explicit Raw Data Fields needed for the 'DCS Nahi' flag check ---
+                let rawKharifDCS = kharifCrop; // Since kharifCrop is already exactly 'o['खरीफ DCS में फसल ']'
+                let rawRabiDCS = rabiCrop;   // Same logic for Rabi
+
+                // ── फसल का नाम (Col Z — Kharif fallback only) ──
+                let cropNameZ     = (o['फसल का नाम'] || '').trim();
+
+                // खरीफ फसल: पहले Col K, अगर blank/'--' तो Col Z (फसल का नाम)
+                let finalKharifCrop = '';
+                if (kharifCrop && kharifCrop !== '--') {
+                    finalKharifCrop = kharifCrop;
+                } else if (cropNameZ && cropNameZ !== '--') {
+                    finalKharifCrop = cropNameZ;
+                }
+                
+                // रबी फसल: केवल Col R से, Col Z से fallback नहीं
+                let finalRabiCrop = '';
+                if (rabiCrop && rabiCrop !== '--') {
+                    finalRabiCrop = rabiCrop;
+                }
+
+                // Determine dufasali (double crop)
+                let isDufasali = (finalKharifCrop !== '' && finalRabiCrop !== '');
+
+                // दुफसली रकबा = दोनों Crop Area में से छोटा
+                let dufasaliArea = isDufasali ? Math.min(kharifCropArea, rabiCropArea) : 0;
+
+                return {
+                    id: i + 1,
+                    v: v,
+                    kn: o['खसरा नंबर'] || '',
+                    bn: o['बसरा नंबर'] || '',
+                    owner: ownerRaw || 'अज्ञात',
+                    ownerKey: ownerKey || 'अज्ञात',
+                    ownerNames: ownerNames.length ? ownerNames : ['अज्ञात'],
+                    area: parseFloat(o['क्षेत्रफल'] || 0).toFixed(3),
+                    type: o['सिंचित / असिंचित'] || '',
+                    nistar: nistarText,
+                    charai: o['चराई भूमि है ?'] || '',
+                    ceiling: o['सीलिंग भूमि है ?'] || '',
+                    
+                    // नई फसल fields:
+                    rawKharifDCS: rawKharifDCS,
+                    rawRabiDCS: rawRabiDCS,
+                    finalKharifCrop: finalKharifCrop,
+                    kharifCropArea: kharifCropArea.toFixed(3),
+                    finalRabiCrop: finalRabiCrop,
+                    rabiCropArea: rabiCropArea.toFixed(3),
+                    isDufasali: isDufasali,
+                    dufasaliArea: dufasaliArea.toFixed(3),
+                    
+                    // खरीफ NA/Fallow:
+                    naLandK: naLandK,
+                    naAreaK: naAreaK.toFixed(3),
+                    fallowLandK: fallowLandK,
+                    fallowAreaK: fallowAreaK.toFixed(3),
+                    
+                    // रबी NA/Fallow:
+                    naLandR: naLandR,
+                    naAreaR: naAreaR.toFixed(3),
+                    fallowLandR: fallowLandR,
+                    fallowAreaR: fallowAreaR.toFixed(3),
+                };
+            }).filter(r => r.v && r.kn);
+            return records.length > 0;
+        }
+
+        function loadData() {
+            const badge = document.getElementById('recordCountBadge');
+            badge.textContent = '⏳ डेटा लोड हो रहा है...';
+
+            function onSuccess() {
+                fillVillages();
+                badge.textContent = `✅ ${records.length} रिकॉर्ड लोड`;
+                toast(`${records.length} रिकॉर्ड सफलतापूर्वक लोड हुए`, 'success');
+                switchTab('statistics');
+            }
+            function onError(msg) {
+                badge.innerHTML = `❌ लोड विफल &nbsp;<button onclick="loadData()" style="background:#1a1a6e;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;">🔄 पुनः प्रयास</button>`;
+                toast(msg || 'नेटवर्क त्रुटि — कृपया इंटरनेट जांचें', 'error');
+            }
+
+            // CORS-safe proxy chain for file:// protocol support
+            function tryParse(csvText) {
+                const r = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' });
+                return processCSVResults(r);
+            }
+
+            const PROXY1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL);
+            const PROXY2 = 'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL);
+
+            // Step 1: Try allorigins.win proxy
+            fetch(PROXY1)
+                .then(res => { if (!res.ok) throw new Error('p1'); return res.text(); })
+                .then(csv => { if (tryParse(csv)) onSuccess(); else throw new Error('parse'); })
+                .catch(() => {
+                    // Step 2: Try corsproxy.io
+                    fetch(PROXY2)
+                        .then(res => { if (!res.ok) throw new Error('p2'); return res.text(); })
+                        .then(csv => { if (tryParse(csv)) onSuccess(); else throw new Error('parse'); })
+                        .catch(() => {
+                            // Step 3: PapaParse direct download (last resort)
+                            Papa.parse(SHEET_URL, {
+                                download: true, header: true, worker: false,
+                                skipEmptyLines: 'greedy',
+                                complete: function (results) {
+                                    if (processCSVResults(results)) onSuccess();
+                                    else onError('डेटा लोड विफल — "पुनः प्रयास" बटन दबाएं');
+                                },
+                                error: function () { onError('नेटवर्क त्रुटि — कृपया इंटरनेट जांचें'); }
+                            });
+                        });
+                });
+        }
+
+        function fillVillages() {
+            const desiredOrder = ['छेरकापुर (हल्का 28)', 'छड़िया (हल्का 28)', 'तिल्दा (हल्का 43)', 'गबौद (हल्का 43)'];
+            const sel = document.getElementById('villageInput');
+            const vals = [...new Set(records.map(r => r.v).filter(Boolean))].sort((a, b) => {
+                const idxA = desiredOrder.indexOf(a);
+                const idxB = desiredOrder.indexOf(b);
+                return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+            });
+            while (sel.options.length > 1) sel.remove(1);
+            vals.forEach(v => { const o = document.createElement('option'); o.value = o.text = v; sel.appendChild(o); });
+        }
+
+        // ── Village change → fill basra & farmers & khasra list ──
+        document.getElementById('villageInput').addEventListener('change', function () {
+            const v = this.value;
+
+            // 1. Populate Basra
+            const sel = document.getElementById('basraVal');
+            const basras = [...new Set(records.filter(r => r.v === v).map(r => r.bn).filter(Boolean))].sort((a, b) => {
+                const [a1, a2 = '0'] = a.split('/'); const [b1, b2 = '0'] = b.split('/');
+                return (parseInt(a1) - parseInt(b1)) || (parseInt(a2) - parseInt(b2));
+            });
+            sel.innerHTML = '<option value="" disabled selected>— बसरा चुनें —</option>';
+            basras.forEach(b => { const o = document.createElement('option'); o.value = o.text = b; sel.appendChild(o); });
+            sel.disabled = false;
+            sel.classList.remove('form-select');
+            sel.className = 'form-select';
+
+            // 2. Populate Farmer Names
+            const farmerList = document.getElementById('farmerList');
+            const namInput = document.getElementById('namVal');
+            if (farmerList && namInput) {
+                const names = [...new Set(
+                    records.filter(r => r.v === v).flatMap(r => r.ownerNames).filter(Boolean)
+                )].sort((a, b) => a.localeCompare(b, 'hi'));
+                farmerList.innerHTML = '';
+                names.forEach(n => { const o = document.createElement('option'); o.value = n; farmerList.appendChild(o); });
+                namInput.disabled = false;
+                namInput.placeholder = 'नाम टाइप करें या चुनें';
+            }
+
+            // 3. Store khasra list for this village (sorted numerically)
+            window._khasraList = [...new Set(records.filter(r => r.v === v).map(r => r.kn).filter(Boolean))].sort((a, b) => {
+                const [a1, a2 = '0'] = String(a).split('/');
+                const [b1, b2 = '0'] = String(b).split('/');
+                return (parseInt(a1) - parseInt(b1)) || (parseInt(a2) - parseInt(b2));
+            });
+
+            if (currentTab === 'basra') toast(`${basras.length} बसरा उपलब्ध`, 'info');
+            else if (currentTab === 'nam') toast(`${farmerList.options.length} भूमिस्वामी उपलब्ध`, 'info');
+            else if (currentTab === 'khasra') toast(`${window._khasraList.length} खसरे उपलब्ध`, 'info');
+        });
+
+        // ── Khasra Autocomplete ───────────────────────────────────
+        (function () {
+            const inp = document.getElementById('khasraVal');
+            const box = document.getElementById('khasraSuggest');
+
+            function positionBox() {
+                const rect = inp.getBoundingClientRect();
+                box.style.top    = (rect.bottom + 4) + 'px';
+                box.style.left   = rect.left + 'px';
+                box.style.width  = rect.width + 'px';
+            }
+
+            function showSuggestions(q) {
+                const list = window._khasraList || [];
+                if (!q || !list.length) { box.style.display = 'none'; return; }
+
+                const qNum = q.replace(/\s/g, '');
+                const matched = list.filter(kn => {
+                    const s = String(kn);
+                    return s === qNum || s.startsWith(qNum + '/');
+                }).slice(0, 50);
+
+                if (!matched.length) { box.style.display = 'none'; return; }
+
+                box.innerHTML = matched.map((kn, i) =>
+                    `<div data-kn="${kn}" style="
+                        padding:10px 16px;
+                        font-size:14px;
+                        font-weight:700;
+                        color:var(--royal);
+                        cursor:pointer;
+                        border-bottom:${i < matched.length - 1 ? '1px solid var(--border)' : 'none'};
+                        font-family:'Noto Sans Devanagari',sans-serif;
+                        transition:background 0.15s;
+                    " onmouseenter="this.style.background='#f0f4ff'" onmouseleave="this.style.background=''">${kn}</div>`
+                ).join('');
+                positionBox();
+                box.style.display = 'block';
+            }
+
+            inp.addEventListener('input', function () {
+                showSuggestions(this.value.trim());
+            });
+
+            inp.addEventListener('focus', function () {
+                if (this.value.trim()) showSuggestions(this.value.trim());
+            });
+
+            box.addEventListener('mousedown', function (e) {
+                const item = e.target.closest('[data-kn]');
+                if (item) {
+                    inp.value = item.dataset.kn;
+                    box.style.display = 'none';
+                    inp.focus();
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!inp.contains(e.target) && !box.contains(e.target)) {
+                    box.style.display = 'none';
+                }
+            });
+
+            // ── Prevent page scroll when scrolling inside dropdown ──
+            box.addEventListener('wheel', function (e) {
+                const atTop = this.scrollTop === 0;
+                const atBottom = this.scrollTop + this.clientHeight >= this.scrollHeight;
+                if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) return;
+                e.stopPropagation();
+                e.preventDefault();
+                this.scrollTop += e.deltaY;
+            }, { passive: false });
+
+            // ── Reposition on resize ──
+            window.addEventListener('resize', function () {
+                if (box.style.display !== 'none') positionBox();
+            });
+
+            inp.addEventListener('keydown', function (e) {
+                if (!box.style.display || box.style.display === 'none') return;
+                const items = box.querySelectorAll('[data-kn]');
+                const active = box.querySelector('[data-kn][style*="background:#f0f4ff"]') ||
+                               box.querySelector('[data-kn].ksg-active');
+                let idx = [...items].indexOf(active);
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (active) active.style.background = '';
+                    const next = items[Math.min(idx + 1, items.length - 1)];
+                    next.style.background = '#f0f4ff';
+                    next.scrollIntoView({ block: 'nearest' });
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (active) active.style.background = '';
+                    const prev = items[Math.max(idx - 1, 0)];
+                    prev.style.background = '#f0f4ff';
+                    prev.scrollIntoView({ block: 'nearest' });
+                } else if (e.key === 'Enter') {
+                    if (active) {
+                        inp.value = active.dataset.kn;
+                        box.style.display = 'none';
+                    }
+                } else if (e.key === 'Escape') {
+                    box.style.display = 'none';
+                }
+            });
+        })();
+
+
+        // ── Tab Switch ────────────────────────────────
+        function switchTab(tab) {
+            currentTab = tab;
+            const isSearch = ['khasra', 'basra', 'nam'].includes(tab);
+            const isStat = tab === 'statistics';
+            const isGov = tab === 'gov';
+
+            // Show/hide search form
+            document.getElementById('searchForm').closest('.search-card').style.display = isSearch ? '' : 'none';
+            document.getElementById('khasraGroup').style.display = tab === 'khasra' ? '' : 'none';
+            document.getElementById('basraGroup').style.display = tab === 'basra' ? '' : 'none';
+            document.getElementById('namGroup').style.display = tab === 'nam' ? '' : 'none';
+
+            ['khasra', 'basra', 'nam', 'statistics', 'gov'].forEach(t => {
+                const el = document.getElementById('tab-' + t);
+                if (el) el.className = 'tab-btn' + (tab === t ? ' active' : '');
+            });
+
+            // Show/hide panels
+            document.getElementById('resultsDiv').innerHTML = '';
+            document.getElementById('emptyDiv').style.display = 'none';
+            document.getElementById('statisticsDiv').style.display = isStat ? '' : 'none';
+            document.getElementById('govDiv').style.display = isGov ? '' : 'none';
+
+            if (isStat) {
+                showStatistics();
+                const cropSel = document.getElementById('statCropSelect');
+                if (cropSel && cropSel.value) updateCropSummary();
+                return;
+            }
+            if (isGov) { showGovRecords(); return; }
+
+            // If village already chosen, re-populate basra / farmerList
+            if (tab === 'basra' || tab === 'nam') {
+                const v = document.getElementById('villageInput').value;
+                if (v) document.getElementById('villageInput').dispatchEvent(new Event('change'));
+            }
+        }
+
+
+
+        // ── Search ────────────────────────────────────
+        function handleSearch(e) {
+            e.preventDefault();
+            const v = document.getElementById('villageInput').value;
+            let val = '';
+
+            if (currentTab === 'khasra') val = document.getElementById('khasraVal').value.trim();
+            else if (currentTab === 'basra') val = document.getElementById('basraVal').value;
+            else if (currentTab === 'nam') val = document.getElementById('namVal').value.trim();
+
+            if (!v) { toast('कृपया ग्राम चुनें', 'error'); return; }
+            if (!val) {
+                const lbl = currentTab === 'khasra' ? 'खसरा नंबर' : currentTab === 'basra' ? 'बसरा नंबर' : 'भूमिस्वामी का नाम';
+                toast(`कृपया ${lbl} चुनें/दर्ज करें`, 'error');
+                return;
+            }
+
+            setLoading(true);
+            setTimeout(() => {
+                let found = [];
+                if (currentTab === 'khasra') found = records.filter(r => r.v === v && r.kn == val);
+                else if (currentTab === 'basra') found = records.filter(r => r.v === v && r.bn == val);
+                else if (currentTab === 'nam') {
+                    const nval = val.replace(/\s+/g, ' ').trim();
+                    // Step 1: exact name match
+                    const nameMatched = records.filter(r => r.v === v && r.ownerNames.includes(nval));
+                    // Step 2: collect basra numbers from matched records
+                    const basraSet = new Set(nameMatched.map(r => r.bn).filter(Boolean));
+                    // Step 3: show ALL khasras of those basras
+                    found = basraSet.size > 0
+                        ? records.filter(r => r.v === v && basraSet.has(r.bn))
+                        : nameMatched; // if no basra, just show name-matched records
+                }
+
+                setLoading(false);
+                renderResults(found, v, val);
+            }, 60);
+        }
+
+        function setLoading(on) {
+            document.getElementById('loadingDiv').style.display = on ? '' : 'none';
+            document.getElementById('searchBtn').disabled = on;
+            document.getElementById('btnLabel').textContent = on ? 'खोज रहे हैं...' : 'खोजें';
+        }
+
+        // ── Render ────────────────────────────────────
+        function renderResults(found, v, val) {
+            const res = document.getElementById('resultsDiv');
+            const emp = document.getElementById('emptyDiv');
+            res.innerHTML = '';
+
+            if (!found.length) {
+                emp.style.display = '';
+                toast('कोई रिकॉर्ड नहीं मिला', 'error');
+                return;
+            }
+            emp.style.display = 'none';
+            toast(`${found.length} रिकॉर्ड मिले`, 'success');
+
+            // Portfolio banner for basra or nam
+            if (currentTab === 'basra' || currentTab === 'nam') {
+                const totalArea = found.reduce((s, r) => s + parseFloat(r.area), 0).toFixed(3);
+                const banner = document.createElement('div');
+                banner.className = 'portfolio-banner';
+                banner.style.marginBottom = '24px';
+
+                const subtitle = currentTab === 'basra'
+                    ? `ग्राम: ${v} &nbsp;|&nbsp; बसरा: ${val}`
+                    : `ग्राम: ${v} &nbsp;|&nbsp; भूमिस्वामी: ${val}`;
+
+                const ownerName = currentTab === 'basra' ? found[0].owner : val;
+
+                const printFn = currentTab === 'basra'
+                    ? `printPortfolio('${escJS(ownerName)}','${escJS(v)}','${escJS(val)}')`
+                    : `printFarmerPortfolio('${escJS(ownerName)}','${escJS(v)}')`;
+
+                banner.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="font-size:11px; font-weight:700; opacity:0.6; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px;">भूमिस्वामी पोर्टफोलियो</div>
+            <div style="font-size:22px; font-weight:900; line-height:1.1;">${ownerName}</div>
+            <div style="margin-top:6px; opacity:0.75; font-size:14px;">${subtitle}</div>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div class="pf-stat">
+              <div class="pf-stat-label">कुल खसरा</div>
+              <div class="pf-stat-val">${found.length}</div>
+            </div>
+            <div class="pf-stat">
+              <div class="pf-stat-label">कुल क्षेत्रफल</div>
+              <div class="pf-stat-val">${totalArea} <span style="font-size:14px;font-weight:600;opacity:0.7;">हे.</span></div>
+            </div>
+          </div>
+          <button onclick="${printFn}" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;align-self:center;">🖨 Portfolio Print</button>
+          
+        </div>`;
+                res.appendChild(banner);
+            }
+
+            // Cards grid
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px;';
+            found.forEach((r, idx) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.style.animationDelay = `${idx * 0.06}s`;
+                const hdrClass = currentTab === 'nam' ? 'card-header-khasra' : `card-header-${currentTab}`;
+                const typeBadge = r.type.includes('असिंचित') ? 'asinchai' : 'sinchai';
+                card.innerHTML = `
+        <div class="${hdrClass}" style="padding:16px 20px; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:10px; font-weight:700; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px;">
+              ${currentTab === 'khasra' ? 'खसरा नंबर' : currentTab === 'basra' ? 'बसरा नंबर' : 'खसरा नंबर'}
+            </div>
+            <div class="card-kn" style="color:#fff;">${currentTab === 'basra' ? r.bn : r.kn}</div>
+            <div style="font-size:13px; color:rgba(255,255,255,0.7); margin-top:4px; font-weight:600;">${r.v}${getHalka(r.v) ? ` &nbsp;<span style="background:rgba(255,255,255,0.18);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800;letter-spacing:0.05em;">${getHalka(r.v)}</span>` : ''}</div>
+          </div>
+          <button onclick="event.stopPropagation();printSingleRecord(${JSON.stringify(r).replace(/"/g, '&quot;')})" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.35);color:#fff;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨 Print</button>
+        </div>
+        <div style="padding:18px 20px; display:flex; flex-direction:column; gap:14px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="stat-chip">
+              <div class="stat-chip-label">खसरा नं.</div>
+              <div class="stat-chip-val">${r.kn}</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-label">बसरा नं.</div>
+              <div class="stat-chip-val">${r.bn}</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border); padding-top:12px;">
+            <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">भूमिस्वामी</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text-main); line-height:1.4;">${r.owner}</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; border-top:1px solid var(--border); padding-top:12px;">
+            <div>
+              <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:4px;">क्षेत्रफल (हे.)</div>
+              <div style="font-size:18px; font-weight:900; color:var(--text-main);">${r.area}</div>
+            </div>
+            <div>
+              <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">प्रकार</div>
+              <span class="type-badge ${typeBadge}">${r.type || '—'}</span>
+            </div>
+          </div>
+          
+          <div style="border-top:1px solid var(--border); padding-top:12px;">
+            <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px;">🌾 फसल विवरण</div>
+            
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              
+              <!-- खरीफ फसल -->
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:700; color:#065f46; background:#d1fae5; border-radius:5px; padding:2px 8px;">☀️ खरीफ</span>
+                <span style="font-size:13px; font-weight:700; color:var(--text-main);">${r.finalKharifCrop || '—'}</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">${r.finalKharifCrop ? r.kharifCropArea + ' हे.' : '—'}</span>
+              </div>
+              
+              <!-- रबी फसल -->
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:700; color:#1e40af; background:#dbeafe; border-radius:5px; padding:2px 8px;">❄️ रबी</span>
+                <span style="font-size:13px; font-weight:700; color:var(--text-main);">${r.finalRabiCrop || '—'}</span>
+                <span style="font-size:12px; font-weight:600; color:var(--text-muted);">${r.finalRabiCrop ? r.rabiCropArea + ' हे.' : '—'}</span>
+              </div>
+              
+              <!-- दुफसली — केवल तभी दिखाओ जब isDufasali = true -->
+              ${r.isDufasali ? `
+              <div style="background:#ede9fe; border:1px solid #c4b5fd; border-radius:8px; padding:6px 10px; display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                <span style="font-size:11px; font-weight:800; color:#5b21b6;">🌾 दुफसली रकबा</span>
+                <span style="font-size:13px; font-weight:900; color:#4c1d95;">${r.dufasaliArea} हे.</span>
+              </div>` : ''}
+              
+              <!-- NA Land खरीफ — केवल Yes होने पर -->
+              ${(r.finalKharifCrop && r.naLandK === 'Yes') ? `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#fef3c7; border-radius:6px; padding:4px 8px;">
+                <span style="font-size:11px; font-weight:700; color:#92400e;">⚠️ NA Land (खरीफ): Yes</span>
+                <span style="font-size:12px; font-weight:700; color:#78350f;">${r.naAreaK} हे.</span>
+              </div>` : ''}
+              
+              <!-- Fallow Land खरीफ — केवल Yes होने पर -->
+              ${(r.finalKharifCrop && r.fallowLandK === 'Yes') ? `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#fef3c7; border-radius:6px; padding:4px 8px;">
+                <span style="font-size:11px; font-weight:700; color:#92400e;">⚠️ Fallow Land (खरीफ): Yes</span>
+                <span style="font-size:12px; font-weight:700; color:#78350f;">${r.fallowAreaK} हे.</span>
+              </div>` : ''}
+              
+              <!-- NA Land रबी — केवल Yes होने पर -->
+              ${(r.finalRabiCrop && r.naLandR === 'Yes') ? `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#dbeafe; border-radius:6px; padding:4px 8px;">
+                <span style="font-size:11px; font-weight:700; color:#1e40af;">⚠️ NA Land (रबी): Yes</span>
+                <span style="font-size:12px; font-weight:700; color:#1e3a8a;">${r.naAreaR} हे.</span>
+              </div>` : ''}
+              
+              <!-- Fallow Land रबी — केवल Yes होने पर -->
+              ${(r.finalRabiCrop && r.fallowLandR === 'Yes') ? `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#dbeafe; border-radius:6px; padding:4px 8px;">
+                <span style="font-size:11px; font-weight:700; color:#1e40af;">⚠️ Fallow Land (रबी): Yes</span>
+                <span style="font-size:12px; font-weight:700; color:#1e3a8a;">${r.fallowAreaR} हे.</span>
+              </div>` : ''}
+              
+            </div>
+          </div>
+
+          ${(r.charai || r.ceiling) ? `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:12px;">
+            ${r.charai ? `<span style="background:#fef9c3; border:1px solid #fde047; color:#713f12; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700;">🌿 चराई: ${r.charai}</span>` : ''}
+            ${r.ceiling ? `<span style="background:#fce7f3; border:1px solid #f9a8d4; color:#831843; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700;">⚖️ सीलिंग: ${r.ceiling}</span>` : ''}
+          </div>` : ''}
+          ${r.nistar ? `
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:10px 14px; border-top:1px solid var(--border); padding-top:12px;">
+            <div style="font-size:10px; font-weight:700; color:#92400e; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">निस्तार विवरण</div>
+            <div style="font-size:14px; font-weight:700; color:#78350f; line-height:1.5; font-family:'Noto Sans Devanagari',Arial,sans-serif;">${r.nistar}</div>
+          </div>` : ''}
+        </div>`;
+                grid.appendChild(card);
+            });
+            res.appendChild(grid);
+        }
+
+        function escJS(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '').replace(/\n/g, ' '); }
+
+        // ══════════════════════════════════════════════
+        // ️ PRINT / PDF  (Lovable-style: window.open + window.print)
+        // ══════════════════════════════════════════════
+
+        function printSingleRecord(r) {
+            const pw = window.open('', '_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.', 'error'); return; }
+            const sinchType = r.type && !r.type.includes('असिंचित') ? 'badge-green' : 'badge-orange';
+            pw.document.write(`<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="UTF-8">
+<title>भूमि रिकॉर्ड – ${r.v} – खसरा ${r.kn}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; padding:40px; color:#1a1a1a; background:#fff; }
+  h1 { text-align:center; font-size:22px; font-weight:800; margin-bottom:4px; color:#1a1a6e; }
+  .subtitle { text-align:center; font-size:14px; color:#555; margin-bottom:28px; }
+  .badges { display:flex; gap:10px; margin-bottom:22px; flex-wrap:wrap; }
+  .badge { padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700; }
+  .badge-green { background:#d1fae5; color:#065f46; }
+  .badge-orange { background:#ffedd5; color:#9a3412; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { border:1px solid #e2e8f0; padding:12px 16px; font-size:14px; text-align:left; vertical-align:middle; }
+  th { background:#f8fafc; font-weight:700; color:#374151; width:38%; text-align:center; }
+  td { font-weight:600; color:#1a1a1a; }
+  .footer { margin-top:30px; text-align:center; font-size:11px; color:#aaa; }
+  @media print { body { padding:20px; } }
+</style></head><body>
+<h1>🌾 भूमि रिकॉर्ड विवरण</h1>
+<p class="subtitle">${r.v}${getHalka(r.v) ? ' (' + getHalka(r.v) + ')' : ''} — खसरा ${r.kn} | दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+<div class="badges">
+  <span class="badge ${sinchType}">${r.type || '—'}</span>
+</div>
+<table>
+  <tr><th>🏘️ ग्राम</th><td>${r.v}${getHalka(r.v) ? ' &nbsp;<strong>(' + getHalka(r.v) + ')</strong>' : ''}</td></tr>
+  <tr><th>📋 खसरा नंबर</th><td>${r.kn}</td></tr>
+  <tr><th>📄 बसरा नंबर</th><td>${r.bn}</td></tr>
+  <tr><th>👤 भूमिस्वामी</th><td>${r.owner}</td></tr>
+  <tr><th>📐 क्षेत्रफल (हेक्टेयर)</th><td>${r.area} हे.</td></tr>
+  <tr><th>🌱 भूमि का प्रकार</th><td>${r.type || '—'}</td></tr>
+  <tr><th>🌾 फसल विवरण</th><td>
+    ${r.isDufasali ? '<span style="color:#3730a3;font-weight:800;font-size:12px;">(दुफसली)</span> ' : ''}
+    ${r.finalKharifCrop ? 'खरीफ: ' + r.finalKharifCrop : ''}
+    ${r.finalKharifCrop && r.finalRabiCrop ? ' | ' : ''}
+    ${r.finalRabiCrop ? 'रबी: ' + r.finalRabiCrop : ''}
+    ${!r.finalKharifCrop && !r.finalRabiCrop ? '—' : ''}
+  </td></tr>
+  <tr><th>🏢 NA रकबा</th><td>${r.naAreaK > 0 ? 'खरीफ: ' + r.naAreaK : ''} ${r.naAreaR > 0 ? (r.naAreaK > 0 ? ' | ' : '') + 'रबी: ' + r.naAreaR : (!r.naAreaK ? '—' : '')}</td></tr>
+  <tr><th>🏜️ पड़ती रकबा</th><td>${r.fallowAreaK > 0 ? 'खरीफ: ' + r.fallowAreaK : ''} ${r.fallowAreaR > 0 ? (r.fallowAreaK > 0 ? ' | ' : '') + 'रबी: ' + r.fallowAreaR : (!r.fallowAreaK ? '—' : '')}</td></tr>
+  ${r.charai ? `<tr><th>🌿 चराई भूमि</th><td>${r.charai}</td></tr>` : ''}
+  ${r.ceiling ? `<tr><th>⚖️ सीलिंग भूमि</th><td>${r.ceiling}</td></tr>` : ''}
+  ${r.nistar ? `<tr><th>📝 निस्तार विवरण</th><td>${r.nistar}</td></tr>` : ''}
+</table>
+<p class="footer">भूमि रिकॉर्ड डैशबोर्ड — हल्का 43 एवं 28</p>
+</body></html>`);
+            pw.document.close();
+        }
+
+        function printPortfolio(owner, village, basraNo) {
+            const basraRecs = records.filter(r => r.v === village && r.bn === basraNo);
+            if (!basraRecs.length) return;
+            const totalArea = basraRecs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+            const sinchai = basraRecs.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')).length;
+            const asinchai = basraRecs.length - sinchai;
+
+            const rowsHtml = basraRecs.map((r, i) => `
+              <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#fff'}">
+                <td style="text-align:center;font-weight:800;">${i + 1}</td>
+                <td style="font-weight:800;text-align:center;">${r.kn}</td>
+                <td>${r.owner}</td>
+                <td style="text-align:right;font-weight:800;">${r.area}</td>
+                <td>${r.type || '—'}</td>
+                <td>
+                  ${r.isDufasali ? '<span style="color:#3730a3;font-weight:800;font-size:11px;">(दुफसली)</span><br>' : ''}
+                  ${r.finalKharifCrop ? '<span style="font-size:11px;color:#065f46;">खरीफ:</span> ' + r.finalKharifCrop + '<br>' : ''}
+                  ${r.finalRabiCrop ? '<span style="font-size:11px;color:#1e40af;">रबी:</span> ' + r.finalRabiCrop : ''}
+                  ${!r.finalKharifCrop && !r.finalRabiCrop ? '—' : ''}
+                </td>
+                <td>
+                  ${r.naAreaK > 0 ? '<span style="font-size:10px;color:#92400e;">ख:</span> ' + r.naAreaK + '<br>' : ''}
+                  ${r.naAreaR > 0 ? '<span style="font-size:10px;color:#1e3a8a;">र:</span> ' + r.naAreaR : ''}
+                  ${!r.naAreaK && !r.naAreaR ? '—' : ''}
+                </td>
+                <td>
+                  ${r.fallowAreaK > 0 ? '<span style="font-size:10px;color:#92400e;">ख:</span> ' + r.fallowAreaK + '<br>' : ''}
+                  ${r.fallowAreaR > 0 ? '<span style="font-size:10px;color:#1e3a8a;">र:</span> ' + r.fallowAreaR : ''}
+                  ${!r.fallowAreaK && !r.fallowAreaR ? '—' : ''}
+                </td>
+                <td>${r.charai || '—'}</td>
+                <td>${r.ceiling || '—'}</td>
+                <td>${r.nistar || '—'}</td>
+              </tr>`).join('');
+
+            const pw = window.open('', '_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.', 'error'); return; }
+            pw.document.write(`<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="UTF-8">
+<title>बसरा पोर्टफोलियो – ${village} – बसरा ${basraNo}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; padding:30px; color:#1a1a1a; background:#fff; }
+  h1 { text-align:center; font-size:22px; font-weight:800; margin-bottom:4px; color:#1a1a6e; }
+  .subtitle { text-align:center; font-size:14px; color:#555; margin-bottom:20px; }
+  .summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:24px; justify-content:center; }
+  .summary-item { background:#f0f4ff; border:1px solid #d1d9ff; border-radius:10px; padding:12px 20px; text-align:center; min-width:100px; }
+  .summary-item .val { font-size:22px; font-weight:900; color:#1a1a6e; }
+  .summary-item .lbl { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
+  .green .val { color:#065f46; } .green { background:#d1fae5; border-color:#6ee7b7; }
+  .orange .val { color:#9a3412; } .orange { background:#ffedd5; border-color:#fdba74; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { border:1px solid #e2e8f0; padding:10px 14px; text-align:left; vertical-align:middle; }
+  th { background:#1a1a6e; color:#fff; font-weight:700; font-size:13px; text-align:center; }
+  .footer { margin-top:24px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #e2e8f0; padding-top:12px; }
+  @media print { body { padding:15px; } }
+</style></head><body>
+<h1>🌾 बसरा पोर्टफोलियो रिपोर्ट</h1>
+<p class="subtitle">${village}${getHalka(village) ? ' (' + getHalka(village) + ')' : ''} — बसरा ${basraNo} | भूमिस्वामी: ${owner} | दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+<div class="summary">
+  <div class="summary-item"><div class="val">${basraRecs.length}</div><div class="lbl">कुल खसरे</div></div>
+  <div class="summary-item"><div class="val">${totalArea} हे.</div><div class="lbl">कुल क्षेत्रफल</div></div>
+  <div class="summary-item green"><div class="val">${sinchai}</div><div class="lbl">सिंचित</div></div>
+  <div class="summary-item orange"><div class="val">${asinchai}</div><div class="lbl">असिंचित</div></div>
+</div>
+<table>
+  <thead><tr><th>#</th><th>खसरा</th><th>भूमिस्वामी</th><th style="text-align:center;">क्षेत्रफल (हे.)</th><th>भूमि प्रकार</th><th>फसल विवरण</th><th>NA रकबा</th><th>पड़ती रकबा</th><th>चराई भूमि</th><th>सीलिंग भूमि</th><th>निस्तार विवरण</th></tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
+<p class="footer">भूमि रिकॉर्ड डैशबोर्ड — हल्का 43 एवं 28 | कम्प्यूटर जनित रिकॉर्ड — सत्यापन हेतु पटवारी कार्यालय से संपर्क करें</p>
+</body></html>`);
+            pw.document.close();
+        }
+
+        // ─── Farmer Portfolio Print ───────────────────────────────
+        function printFarmerPortfolio(owner, village) {
+            // Exact name match → basra numbers → all khasras of those basras
+            const ownerNorm = owner.replace(/\s+/g, ' ').trim();
+            const nameMatched = records.filter(r => r.v === village && r.ownerNames.includes(ownerNorm));
+            const basraSet = new Set(nameMatched.map(r => r.bn).filter(Boolean));
+            const farmerRecs = basraSet.size > 0
+                ? records.filter(r => r.v === village && basraSet.has(r.bn))
+                : nameMatched;
+            if (!farmerRecs.length) return;
+
+            const totalArea = farmerRecs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+            const sinchai = farmerRecs.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')).length;
+            const asinchai = farmerRecs.length - sinchai;
+
+            // Optional: Get unique basras logic
+            const uniqueBasras = [...new Set(farmerRecs.map(r => r.bn).filter(Boolean))].join(', ');
+
+            const rowsHtml = farmerRecs.map((r, i) => `
+              <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#fff'}">
+                <td style="text-align:center;font-weight:800;">${i + 1}</td>
+                <td style="font-weight:800;text-align:center;">${r.kn}</td>
+                <td style="text-align:center;">${r.bn}</td>
+                <td style="text-align:right;font-weight:800;">${r.area}</td>
+                <td>${r.type || '—'}</td>
+                <td>${r.isDufasali ? '<span style="color:#3730a3;font-weight:800;font-size:11px;">(दुफसली)</span><br>' : ''}${r.cropName || (r.kharifCrop || r.rabiCrop ? [r.kharifCrop, r.rabiCrop].filter(Boolean).join(' + ') : '—')}</td>
+                <td>${r.naArea || '—'}</td>
+                <td>${r.fallowArea || '—'}</td>
+                <td>${r.charai || '—'}</td>
+                <td>${r.ceiling || '—'}</td>
+                <td>${r.nistar || '—'}</td>
+              </tr>`).join('');
+
+            const pw = window.open('', '_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.', 'error'); return; }
+
+            pw.document.write(`<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="UTF-8">
+<title>किसान पोर्टफोलियो – ${village} – ${owner}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; padding:30px; color:#1a1a1a; background:#fff; }
+  h1   { text-align:center; font-size:22px; font-weight:800; margin-bottom:4px; color:#1a1a6e; }
+  .subtitle { text-align:center; font-size:14px; color:#555; margin-bottom:20px; }
+
+  /* Summary strip */
+  .summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:24px; justify-content:center; }
+  .summary-item { background:#f0f4ff; border:1px solid #d1d9ff; border-radius:10px; padding:12px 20px; text-align:center; min-width:100px; }
+  .summary-item .val { font-size:22px; font-weight:900; color:#1a1a6e; }
+  .summary-item .lbl { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
+  .green         { background:#d1fae5; border-color:#6ee7b7; }
+  .green  .val   { color:#065f46; }
+  .orange        { background:#ffedd5; border-color:#fdba74; }
+  .orange .val   { color:#9a3412; }
+
+  /* Table */
+  table   { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td  { border:1px solid #e2e8f0; padding:10px 14px; text-align:left; vertical-align:middle; }
+  th      { background:#1a1a6e; color:#fff; font-weight:700; font-size:13px; text-align:center; }
+
+  .footer { margin-top:24px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #e2e8f0; padding-top:12px; }
+  @media print { body { padding:15px; } }
+</style></head><body>
+
+<h1>🌾 किसान पोर्टफोलियो रिपोर्ट</h1>
+<p class="subtitle">${village}${getHalka(village) ? ' (' + getHalka(village) + ')' : ''} | भूमिस्वामी: ${owner} | दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;margin-bottom:20px;color:#059669;"><strong>संबंधित बसरा:</strong> ${uniqueBasras}</p>` : ''}
+
+<div class="summary">
+  <div class="summary-item">          <div class="val">${farmerRecs.length}</div><div class="lbl">कुल खसरे</div></div>
+  <div class="summary-item">          <div class="val">${totalArea} हे.</div> <div class="lbl">कुल क्षेत्रफल</div></div>
+  <div class="summary-item green">   <div class="val">${sinchai}</div>          <div class="lbl">सिंचित</div></div>
+  <div class="summary-item orange">  <div class="val">${asinchai}</div>         <div class="lbl">असिंचित</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>खसरा</th>
+      <th>बसरा</th>
+      <th style="text-align:center;">क्षेत्रफल (हे.)</th>
+      <th>भूमि प्रकार</th>
+      <th>फसल विवरण</th>
+      <th>NA रकबा</th>
+      <th>पड़ती रकबा</th>
+      <th>चराई भूमि</th>
+      <th>सीलिंग भूमि</th>
+      <th>निस्तार विवरण</th>
+    </tr>
+  </thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
+
+<p class="footer">
+  भूमि रिकॉर्ड डैशबोर्ड — हल्का 43 एवं 28 |
+  कम्प्यूटर जनित रिकॉर्ड — सत्यापन हेतु पटवारी कार्यालय से संपर्क करें
+</p>
+</body></html>`);
+            pw.document.close();
+        }
+
+
+        // ══════════════════════════════════════════════
+
+        const GRAM_GRADIENTS = [
+            'linear-gradient(135deg,#1a1a6e,#3b5bdb)',
+            'linear-gradient(135deg,#065f46,#059669)',
+            'linear-gradient(135deg,#7c2d12,#ea580c)',
+            'linear-gradient(135deg,#4c1d95,#7c3aed)',
+            'linear-gradient(135deg,#831843,#db2777)',
+            'linear-gradient(135deg,#1e3a5f,#0ea5e9)',
+            'linear-gradient(135deg,#14532d,#16a34a)',
+            'linear-gradient(135deg,#7f1d1d,#dc2626)',
+            'linear-gradient(135deg,#134e4a,#0d9488)',
+            'linear-gradient(135deg,#312e81,#6366f1)',
+        ];
+
+        function showDashboard() {
+            const dash = document.getElementById('dashboardDiv');
+            dash.style.display = '';
+
+            if (!records.length) {
+                dash.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--text-muted);font-size:16px;font-weight:600;">⏳ पहले डेटा लोड होने दें...</div>`;
+                return;
+            }
+
+            // ── Aggregate gram-wise stats ──
+            const gramMap = {};
+            records.forEach(r => {
+                const g = r.v || 'अज्ञात';
+                if (!gramMap[g]) gramMap[g] = { recs: [], owners: {} };
+                gramMap[g].recs.push(r);
+                const ow = r.owner || 'अज्ञात';
+                gramMap[g].owners[ow] = (gramMap[g].owners[ow] || 0) + 1;
+            });
+
+            const grams = Object.keys(gramMap).sort((a, b) => a.localeCompare(b, 'hi'));
+
+            // ── Global totals ──
+            const totalRec = records.length;
+            const totalArea = records.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+            const sinchai = records.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')).length;
+            const asinchai = totalRec - sinchai;
+            const sinchaiPctGlobal = totalRec ? Math.round((sinchai / totalRec) * 100) : 0;
+
+            // ── Top 5 farmers (global) ──
+            const farmerMap = {};
+            records.forEach(r => {
+                const k = r.owner || 'अज्ञात';
+                if (!farmerMap[k]) farmerMap[k] = { area: 0, khasras: 0, village: r.v };
+                farmerMap[k].area += parseFloat(r.area || 0);
+                farmerMap[k].khasras += 1;
+            });
+            const top5 = Object.entries(farmerMap)
+                .sort((a, b) => b[1].area - a[1].area)
+                .slice(0, 5);
+
+            // ── Max area for bar chart ──
+            const maxGramArea = Math.max(...grams.map(g =>
+                gramMap[g].recs.reduce((s, r) => s + parseFloat(r.area || 0), 0)
+            ));
+
+            const now = new Date().toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            // ── Build HTML ──
+            let html = `
+
+            <!-- ▸ Header row -->
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+                <h2 style="font-size:22px;font-weight:900;color:var(--royal);font-family:'Noto Sans Devanagari',sans-serif;">
+                    📊 ग्रामवार भूमि सारांश
+                </h2>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600;">🕐 ${now}</div>
+            </div>
+
+            <!-- ▸ Animated Summary Counters -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:28px;">
+                <div class="dash-counter" style="background:linear-gradient(135deg,#1a1a6e,#3b5bdb);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(26,26,110,0.3);animation-delay:0s;">
+                    <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल ग्राम</div>
+                    <div class="dash-num" data-target="${grams.length}" style="font-size:38px;font-weight:900;line-height:1;">0</div>
+                </div>
+                <div class="dash-counter" style="background:linear-gradient(135deg,#065f46,#059669);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(5,150,105,0.3);animation-delay:0.1s;">
+                    <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल रिकॉर्ड</div>
+                    <div class="dash-num" data-target="${totalRec}" style="font-size:38px;font-weight:900;line-height:1;">0</div>
+                </div>
+                <div class="dash-counter" style="background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(234,88,12,0.3);animation-delay:0.2s;">
+                    <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल क्षेत्रफल (हे.)</div>
+                    <div class="dash-num" data-target="${Math.round(totalArea)}" data-decimal="${totalArea}" style="font-size:34px;font-weight:900;line-height:1;">0</div>
+                </div>
+                <div class="dash-counter" style="background:linear-gradient(135deg,#1e3a5f,#0ea5e9);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(14,165,233,0.3);animation-delay:0.3s;">
+                    <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">सिंचित खसरे</div>
+                    <div class="dash-num" data-target="${sinchai}" style="font-size:38px;font-weight:900;line-height:1;">0</div>
+                </div>
+            </div>
+
+            <!-- ▸ Sinchai vs Asinchai Ring + Stats Row -->
+            <div class="dash-section" style="animation-delay:0.1s;">
+                <div class="dash-section-title">🌊 सिंचित बनाम असिंचित अनुपात</div>
+                <div class="ring-wrap">
+                    <div style="position:relative;flex-shrink:0;">
+                        <svg class="ring-svg" width="140" height="140" viewBox="0 0 140 140">
+                            <circle cx="70" cy="70" r="54" stroke="#fef3c7" stroke-width="16" fill="none"/>
+                            <circle cx="70" cy="70" r="54"
+                                stroke="#059669"
+                                stroke-dasharray="${(sinchaiPctGlobal / 100 * 339.3).toFixed(1)} 339.3"
+                                stroke-dashoffset="84.8"
+                                stroke-linecap="round"
+                                stroke-width="16" fill="none"
+                                style="transition:stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1);"/>
+                        </svg>
+                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                            <div style="font-size:26px;font-weight:900;color:var(--royal);">${sinchaiPctGlobal}%</div>
+                            <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">सिंचित</div>
+                        </div>
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+                        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#d1fae5;border-radius:12px;">
+                            <div style="width:14px;height:14px;border-radius:50%;background:#059669;flex-shrink:0;"></div>
+                            <div style="flex:1;">
+                                <div style="font-size:12px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.06em;">सिंचित</div>
+                                <div style="font-size:22px;font-weight:900;color:#065f46;line-height:1.1;">${sinchai} <span style="font-size:12px;font-weight:600;">खसरे</span></div>
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fef3c7;border-radius:12px;">
+                            <div style="width:14px;height:14px;border-radius:50%;background:#d97706;flex-shrink:0;"></div>
+                            <div style="flex:1;">
+                                <div style="font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.06em;">असिंचित</div>
+                                <div style="font-size:22px;font-weight:900;color:#92400e;line-height:1.1;">${asinchai} <span style="font-size:12px;font-weight:600;">खसरे</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ▸ Area Bar Chart -->
+            <div class="dash-section" style="animation-delay:0.15s;">
+                <div class="dash-section-title">📏 ग्रामवार क्षेत्रफल (हेक्टेयर)</div>
+                ${grams.map((g, i) => {
+                const area = gramMap[g].recs.reduce((s, r) => s + parseFloat(r.area || 0), 0);
+                const pct = maxGramArea > 0 ? (area / maxGramArea * 100).toFixed(1) : 0;
+                const grad = GRAM_GRADIENTS[i % GRAM_GRADIENTS.length];
+                return `
+                    <div class="bar-chart-row">
+                        <div class="bar-label" title="${g}">${g}</div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width:${pct}%;background:${grad};"></div>
+                        </div>
+                        <div class="bar-val">${area.toFixed(3)}</div>
+                    </div>\`;
+            }).join('')}
+            </div>
+
+            <!-- ▸ Top Farmers Leaderboard -->
+            <div class="dash-section" style="animation-delay:0.2s;">
+                <div class="dash-section-title">🏆 शीर्ष 5 भूमिस्वामी (क्षेत्रफल अनुसार)</div>
+                ${top5.map(([name, info], i) => {
+                const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
+                return `
+                    <div class="lb-row" style="animation-delay:${0.05 * i}s;">
+                        <div class="lb-rank ${rankClass}">${medal}</div>
+                        <div style="flex:1;min-width:0;">
+                            <div class="lb-name">${name}</div>
+                            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:2px;">ग्राम: ${info.village}</div>
+                        </div>
+                        <div class="lb-stat">
+                            <div class="lb-stat-val">${info.area.toFixed(3)} हे.</div>
+                            <div class="lb-stat-lbl">${info.khasras} खसरे</div>
+                        </div>
+                    </div>`;
+            }).join('')}
+            </div>
+
+            <!-- ▸ Village Search + Cards Grid -->
+            <div style="margin-bottom:6px;">
+                <div class="dash-section-title" style="margin-bottom:14px;">🏘️ ग्रामवार विवरण</div>
+                <div class="dash-search-wrap">
+                    <svg class="dash-search-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="dashSearchInput" class="dash-search-input"
+                        placeholder="ग्राम खोजें..." oninput="filterDashCards(this.value)">
+                </div>
+            </div>
+
+            <div id="dashCardsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:20px;margin-bottom:8px;">
+            ${grams.map((g, i) => {
+                const d = gramMap[g];
+                const recs = d.recs;
+                const area = recs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+                const sCount = recs.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')).length;
+                const aCount = recs.length - sCount;
+                const sPct = recs.length ? Math.round((sCount / recs.length) * 100) : 0;
+                const topOwner = Object.entries(d.owners).sort((a, b) => b[1] - a[1])[0];
+                const grad = GRAM_GRADIENTS[i % GRAM_GRADIENTS.length];
+                const uBasras = new Set(recs.map(r => r.bn)).size;
+
+                return `
+                <div class="result-card dash-gram-card" data-gram="${g}" style="overflow:hidden;border-radius:20px;animation:slideUp 0.4s ease both;animation-delay:${i * 0.04}s;">
+                    <div style="background:${grad};padding:18px 20px;position:relative;overflow:hidden;">
+                        <div style="position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.08);"></div>
+                        <div style="position:absolute;bottom:-30px;left:-10px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.05);"></div>
+                        <div style="position:relative;z-index:1;">
+                            <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">ग्राम</div>
+                            <div style="font-size:20px;font-weight:900;color:#fff;font-family:'Noto Sans Devanagari',sans-serif;line-height:1.2;">${g}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:4px;font-weight:600;">${uBasras} बसरे</div>
+                        </div>
+                    </div>
+                    <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="stat-chip">
+                            <div class="stat-chip-label">कुल खसरे</div>
+                            <div class="stat-chip-val">${recs.length}</div>
+                        </div>
+                        <div class="stat-chip">
+                            <div class="stat-chip-label">क्षेत्रफल (हे.)</div>
+                            <div class="stat-chip-val" style="font-size:16px;">${area}</div>
+                        </div>
+                        <div class="stat-chip" style="background:#d1fae5;">
+                            <div class="stat-chip-label" style="color:#065f46;">सिंचित</div>
+                            <div class="stat-chip-val" style="color:#065f46;">${sCount}</div>
+                        </div>
+                        <div class="stat-chip" style="background:#fef3c7;">
+                            <div class="stat-chip-label" style="color:#92400e;">असिंचित</div>
+                            <div class="stat-chip-val" style="color:#92400e;">${aCount}</div>
+                        </div>
+                    </div>
+                    <div style="padding:0 20px 14px;">
+                        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;">
+                            <span>सिंचित अनुपात</span><span>${sPct}%</span>
+                        </div>
+                        <div style="background:#e2e8f0;border-radius:99px;height:8px;overflow:hidden;">
+                            <div style="width:${sPct}%;height:100%;background:${grad};border-radius:99px;transition:width 0.8s ease;"></div>
+                        </div>
+                    </div>
+                    <div style="padding:12px 20px 16px;border-top:1px solid var(--border);">
+                        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">शीर्ष भूमिस्वामी</div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text-main);font-family:'Noto Sans Devanagari',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${topOwner ? topOwner[0] : '—'}</div>
+                        ${topOwner ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${topOwner[1]} खसरे</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('')}
+            </div>
+            `;
+
+            dash.innerHTML = html;
+
+            // ── Animate counters ──
+            document.querySelectorAll('.dash-num').forEach(el => {
+                const target = parseInt(el.dataset.target, 10);
+                const isDecimal = el.dataset.decimal;
+                const duration = 900;
+                const startTime = performance.now();
+                function tick(now) {
+                    const elapsed = now - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const current = Math.round(eased * target);
+                    el.textContent = isDecimal && progress >= 1 ? parseFloat(isDecimal).toFixed(3) : current;
+                    if (progress < 1) requestAnimationFrame(tick);
+                }
+                requestAnimationFrame(tick);
+            });
+        }
+
+        // ── Filter village cards in dashboard/statistics ──
+        function filterDashCards(query) {
+            const q = query.trim().toLowerCase();
+            document.querySelectorAll('.dash-gram-card').forEach(card => {
+                const gram = (card.dataset.gram || '').toLowerCase();
+                card.style.display = gram.includes(q) ? '' : 'none';
+            });
+        }
+
+        // ── Statistics Page ────────────────────────────
+        function showStatistics() {
+            const statDiv = document.getElementById('statisticsDiv');
+            statDiv.style.display = '';
+
+            if (!records.length) {
+                statDiv.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--text-muted);font-size:16px;font-weight:600;">⏳ पहले डेटा लोड होने दें...</div>`;
+                return;
+            }
+
+            // Aggregate gram-wise stats
+            const gramMap = {};
+            records.forEach(r => {
+                const g = r.v || 'अज्ञात';
+                if (!gramMap[g]) gramMap[g] = { recs: [], owners: {} };
+                gramMap[g].recs.push(r);
+                const ow = r.owner || 'अज्ञात';
+                gramMap[g].owners[ow] = (gramMap[g].owners[ow] || 0) + 1;
+            });
+            const grams = Object.keys(gramMap).sort((a, b) => a.localeCompare(b, 'hi'));
+
+            // Global totals
+            const totalRec = records.length;
+            const totalArea = records.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+            const sinchai = records.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')).length;
+            const asinchai = totalRec - sinchai;
+
+            // Top 5 farmers (by area)
+            const farmerMap = {};
+            records.forEach(r => {
+                const k = r.owner || 'अज्ञात';
+                if (!farmerMap[k]) farmerMap[k] = { area: 0, khasras: 0, village: r.v };
+                farmerMap[k].area += parseFloat(r.area || 0);
+                farmerMap[k].khasras += 1;
+            });
+            const top5 = Object.entries(farmerMap)
+                .sort((a, b) => b[1].area - a[1].area)
+                .slice(0, 5);
+
+            const now = new Date().toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            let html = `
+            <div style="animation:slideUp 0.4s ease both;">
+
+              <!-- Header -->
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+                <h2 style="font-size:22px;font-weight:900;color:var(--royal);font-family:'Noto Sans Devanagari',sans-serif;">
+                  📊 विस्तृत आँकड़े
+                </h2>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600;">🕐 ${now}</div>
+              </div>
+
+              <!-- ▸ ग्रामवार भूमि सारांश Card (NEW) -->
+              <div class="stats-summary-card" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border-radius:24px;padding:26px 28px;margin-bottom:28px;box-shadow:0 8px 32px rgba(0,0,0,0.22);position:relative;overflow:hidden;">
+                <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.03);"></div>
+                <div style="position:absolute;bottom:-30px;left:-20px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.02);"></div>
+                <div style="position:relative;z-index:1;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                    <div style="font-size:28px;">🏘️</div>
+                    <div>
+                      <div style="font-size:20px;font-weight:900;color:#fff;font-family:'Noto Sans Devanagari',sans-serif;">ग्रामवार भूमि सारांश</div>
+                      <div style="font-size:14px;color:rgba(255,255,255,0.65);font-weight:600;margin-top:2px;">ग्राम चुनें और विवरण देखें</div>
+                    </div>
+                  </div>
+
+                  <!-- Dropdown -->
+                  <div style="position:relative;margin-bottom:20px;">
+                    <select id="statGramSelect" onchange="updateGramSummary()"
+                      style="width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans Devanagari',sans-serif;appearance:none;cursor:pointer;outline:none;">
+                      <option value="" style="background:#1e293b;color:#fff;">— ग्राम चुनें —</option>
+                      <option value="छेरकापुर (हल्का 28)" style="background:#1e293b;color:#fff;">छेरकापुर (हल्का 28)</option>
+                      <option value="छड़िया (हल्का 28)" style="background:#1e293b;color:#fff;">छड़िया (हल्का 28)</option>
+                      <option value="तिल्दा (हल्का 43)" style="background:#1e293b;color:#fff;">तिल्दा (हल्का 43)</option>
+                      <option value="गबौद (हल्का 43)" style="background:#1e293b;color:#fff;">गबौद (हल्का 43)</option>
+                    </select>
+                    <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:rgba(255,255,255,0.5);font-size:14px;">▼</div>
+                  </div>
+
+                  <!-- Summary Cards Row (hidden until gram selected) -->
+                  <div id="statGramCards" class="stats-grid-main" style="display:none;grid-template-columns:1fr 1fr;gap:14px;">
+
+                    <!-- शासकीय भूमि -->
+                    <div style="background:linear-gradient(135deg,rgba(220,38,38,0.25),rgba(153,27,27,0.35));border:1px solid rgba(220,38,38,0.35);border-radius:18px;padding:18px 20px;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                        <div style="width:42px;height:42px;border-radius:10px;background:rgba(220,38,38,0.4);display:flex;align-items:center;justify-content:center;font-size:22px;">🏛️</div>
+                        <div style="font-size:16px;font-weight:800;color:rgba(255,255,255,0.9);font-family:'Noto Sans Devanagari',sans-serif;line-height:1.3;">शासकीय भूमि</div>
+                      </div>
+                      <div class="stats-grid-inner" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:16px;text-align:center;">
+                          <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;">कुल खसरे</div>
+                          <div id="stat-gov-count" style="font-size:32px;font-weight:900;color:#fca5a5;line-height:1;">—</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:16px;text-align:center;">
+                          <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;">कुल रकबा (हे.)</div>
+                          <div id="stat-gov-area" style="font-size:26px;font-weight:900;color:#fca5a5;line-height:1;">—</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- भूमिस्वामी हक -->
+                    <div style="background:linear-gradient(135deg,rgba(5,150,105,0.25),rgba(4,120,87,0.35));border:1px solid rgba(5,150,105,0.35);border-radius:18px;padding:18px 20px;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                        <div style="width:42px;height:42px;border-radius:10px;background:rgba(5,150,105,0.4);display:flex;align-items:center;justify-content:center;font-size:22px;">👨‍🌾</div>
+                        <div style="font-size:16px;font-weight:800;color:rgba(255,255,255,0.9);font-family:'Noto Sans Devanagari',sans-serif;line-height:1.3;">भूमिस्वामी हक</div>
+                      </div>
+                      <div class="stats-grid-inner" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:16px;text-align:center;">
+                          <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;">कुल खसरे</div>
+                          <div id="stat-priv-count" style="font-size:32px;font-weight:900;color:#6ee7b7;line-height:1;">—</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:16px;text-align:center;">
+                          <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;">कुल रकबा (हे.)</div>
+                          <div id="stat-priv-area" style="font-size:26px;font-weight:900;color:#6ee7b7;line-height:1;">—</div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <!-- कुल सारांश Row (shown when gram selected) -->
+                  <div id="statGramTotal" style="display:none;margin-top:14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:18px 24px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+                    <div style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.09em;">🧮 कुल योग (शासकीय + भूमिस्वामी)</div>
+                    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+                      <div style="text-align:center;">
+                        <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">कुल खसरे</div>
+                        <div id="stat-total-count" style="font-size:26px;font-weight:900;color:#fde68a;">—</div>
+                      </div>
+                      <div style="width:1px;height:42px;background:rgba(255,255,255,0.15);"></div>
+                      <div style="text-align:center;">
+                        <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">कुल रकबा (हे.)</div>
+                        <div id="stat-total-area" style="font-size:26px;font-weight:900;color:#fde68a;">—</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Placeholder text when no gram selected -->
+                  <div id="statGramPlaceholder" style="text-align:center;padding:10px 0;color:rgba(255,255,255,0.3);font-size:13px;font-weight:600;">
+                    ⬆️ ऊपर से ग्राम चुनें
+                  </div>
+                </div>
+              </div>
+
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:28px;">
+                <div style="background:linear-gradient(135deg,#1a1a6e,#3b5bdb);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(26,26,110,0.25);">
+                  <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल ग्राम</div>
+                  <div style="font-size:36px;font-weight:900;line-height:1;">${grams.length}</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#065f46,#059669);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(5,150,105,0.25);">
+                  <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल रिकॉर्ड</div>
+                  <div style="font-size:36px;font-weight:900;line-height:1;">${totalRec}</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(234,88,12,0.25);">
+                  <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">कुल क्षेत्रफल (हे.)</div>
+                  <div style="font-size:32px;font-weight:900;line-height:1;">${totalArea}</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#1e3a5f,#0ea5e9);color:#fff;border-radius:16px;padding:18px 20px;text-align:center;box-shadow:0 4px 20px rgba(14,165,233,0.25);">
+                  <div style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">सिंचित खसरे</div>
+                  <div style="font-size:36px;font-weight:900;line-height:1;">${sinchai}</div>
+                </div>
+              </div>
+
+              <!-- Sinchai/Asinchai simple stat row (no chart) -->
+              <div class="dash-section" style="margin-bottom:24px;">
+                <div class="dash-section-title">🌊 सिंचित / असिंचित विवरण</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                  <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:#d1fae5;border-radius:14px;">
+                    <div style="width:40px;height:40px;border-radius:12px;background:#059669;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">💧</div>
+                    <div>
+                      <div style="font-size:11px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.06em;">सिंचित</div>
+                      <div style="font-size:26px;font-weight:900;color:#065f46;line-height:1.1;">${sinchai} <span style="font-size:13px;font-weight:600;">खसरे</span></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:#fef3c7;border-radius:14px;">
+                    <div style="width:40px;height:40px;border-radius:12px;background:#d97706;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🏜</div>
+                    <div>
+                      <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.06em;">असिंचित</div>
+                      <div style="font-size:26px;font-weight:900;color:#92400e;line-height:1.1;">${asinchai} <span style="font-size:13px;font-weight:600;">खसरे</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- NEW: Village-wise Ring Charts -->
+                <div style="margin-top: 24px;">
+                  <div style="font-size:14px;font-weight:800;color:var(--royal);margin-bottom:12px;border-top:1px dashed var(--border);padding-top:16px;">ग्राम-वार सिंचित / असिंचित स्थिति</div>
+                  <div style="display:flex; gap:16px; overflow-x:auto; padding-bottom:10px;">
+                    ${grams.map((g) => {
+                      const d = gramMap[g];
+                      const recs = d.recs;
+                      const totalArea = recs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+                      const sRecs = recs.filter(r => r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित'));
+                      const aRecs = recs.filter(r => !(r.type && r.type.includes('सिंचित') && !r.type.includes('असिंचित')));
+                      const sArea = sRecs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+                      const aArea = aRecs.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+                      
+                      const sCount = sRecs.length;
+                      const aCount = aRecs.length;
+                      const total = recs.length || 1;
+                      const sPct = Math.round((sCount / total) * 100);
+                      const strokeDashArea = 226.19; // 2 * Math.PI * 36
+                      const strokeDashSinchai = (sPct / 100) * strokeDashArea;
+                      
+                      return `
+                        <div style="flex:1; min-width:180px; background:#f8fafc; border:1px solid var(--border); border-radius:16px; padding:16px; display:flex; flex-direction:column; align-items:center; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,0.03);">
+                          <div style="font-weight:800; font-size:15px; color:var(--text-main); margin-bottom:12px; font-family:'Noto Sans Devanagari',sans-serif;">${g}</div>
+                          
+                          <div style="position:relative; width:80px; height:80px; margin-bottom:12px;">
+                            <svg class="ring-svg" width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(-90deg);">
+                              <circle cx="50" cy="50" r="36" stroke="#fef3c7" stroke-width="14" fill="none"></circle>
+                              <circle cx="50" cy="50" r="36" stroke="#059669" stroke-width="14" fill="none" stroke-dasharray="${strokeDashSinchai} ${strokeDashArea}" style="transition: stroke-dasharray 1s ease-out; stroke-linecap:round;"></circle>
+                            </svg>
+                            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                              <span style="font-size:16px; font-weight:900; color:#065f46; line-height:1;">${sPct}%</span>
+                            </div>
+                          </div>
+                          
+                          <div style="width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                            <div style="background:#d1fae5; border-radius:10px; padding:8px 4px;">
+                              <div style="font-size:10px; font-weight:700; color:#065f46; text-transform:uppercase; margin-bottom:2px;">सिंचित</div>
+                              <div style="font-size:13px; font-weight:800; color:#065f46;">${sCount} खसरे</div>
+                              <div style="font-size:14px; font-weight:900; color:#065f46;">${sArea} हे.</div>
+                            </div>
+                            <div style="background:#fef3c7; border-radius:10px; padding:8px 4px;">
+                              <div style="font-size:10px; font-weight:700; color:#92400e; text-transform:uppercase; margin-bottom:2px;">असिंचित</div>
+                              <div style="font-size:13px; font-weight:800; color:#92400e;">${aCount} खसरे</div>
+                              <div style="font-size:14px; font-weight:900; color:#92400e;">${aArea} हे.</div>
+                            </div>
+                          </div>
+                          
+                          <div style="margin-top:10px; font-size:12px; font-weight:700; color:var(--text-muted); background:#fff; padding:6px 12px; border-radius:20px; border:1px solid #e2e8f0;">
+                            कुल रकबा: <span style="color:var(--royal); font-weight:900;">${totalArea} हे.</span>
+                          </div>
+                        </div>
+                      \`;
+                    }).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Village wise ring graphs ends here -->
+
+              <!-- ▸ ग्रामवार मकबूजा एवं गैरमकबूज़ा रकबा Cards -->
+              <div class="dash-section" style="margin-top:28px;">
+                <div class="dash-section-title">🗺️ ग्रामवार मकबूजा एवं गैरमकबूज़ा रकबा (हेक्टेयर)</div>
+                <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; margin-top: -8px; margin-bottom: 12px; font-family:'Noto Sans Devanagari',sans-serif;">(भू-अभिलेख से प्राप्त अपरिवर्तित आकड़े)</div>
+                <div style="display:flex; flex-direction:row; gap:14px; margin-top:16px; overflow-x:auto; padding-bottom:6px;">
+
+                  <!-- छेरकापुर -->
+                  <div style="background:linear-gradient(160deg,#1a1a6e 0%,#2d2db0 60%,#3b5bdb 100%); border-radius:16px; padding:14px 16px; color:#fff; box-shadow:0 4px 16px rgba(26,26,110,0.22); position:relative; overflow:hidden; flex:1; min-width:170px;">
+                    <div style="position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
+                    <div style="font-size:10px;font-weight:800;opacity:0.65;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">हल्का 28</div>
+                    <div style="font-size:16px;font-weight:900;margin-bottom:10px;font-family:'Noto Sans Devanagari',sans-serif;line-height:1.2;">छेरकापुर</div>
+                    <div style="display:flex;flex-direction:column;gap:7px;">
+                      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">मकबूजा रकबा</div>
+                          <div id="chk-maqbuza" style="font-size:16px;font-weight:900;margin-top:1px;">1134.913 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🟢</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">गैरमकबूज़ा रकबा</div>
+                          <div id="chk-gair" style="font-size:16px;font-weight:900;margin-top:1px;">112.120 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🔴</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.18);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,0.25);">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.8;text-transform:uppercase;letter-spacing:0.07em;">कुल रकबा</div>
+                          <div id="chk-kul" style="font-size:17px;font-weight:900;margin-top:1px;">1247.033 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.6;">📐</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- छड़िया -->
+                  <div style="background:linear-gradient(160deg,#065f46 0%,#059669 60%,#34d399 100%); border-radius:16px; padding:14px 16px; color:#fff; box-shadow:0 4px 16px rgba(5,150,105,0.22); position:relative; overflow:hidden; flex:1; min-width:170px;">
+                    <div style="position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
+                    <div style="font-size:10px;font-weight:800;opacity:0.65;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">हल्का 28</div>
+                    <div style="font-size:16px;font-weight:900;margin-bottom:10px;font-family:'Noto Sans Devanagari',sans-serif;line-height:1.2;">छड़िया</div>
+                    <div style="display:flex;flex-direction:column;gap:7px;">
+                      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">मकबूजा रकबा</div>
+                          <div id="chd-maqbuza" style="font-size:16px;font-weight:900;margin-top:1px;">321.706 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🟢</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">गैरमकबूज़ा रकबा</div>
+                          <div id="chd-gair" style="font-size:16px;font-weight:900;margin-top:1px;">54.550 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🔴</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.18);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,0.25);">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.8;text-transform:uppercase;letter-spacing:0.07em;">कुल रकबा</div>
+                          <div id="chd-kul" style="font-size:17px;font-weight:900;margin-top:1px;">376.256 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.6;">📐</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- तिल्दा -->
+                  <div style="background:linear-gradient(160deg,#7c2d12 0%,#c2410c 60%,#ea580c 100%); border-radius:16px; padding:14px 16px; color:#fff; box-shadow:0 4px 16px rgba(194,65,12,0.22); position:relative; overflow:hidden; flex:1; min-width:170px;">
+                    <div style="position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
+                    <div style="font-size:10px;font-weight:800;opacity:0.65;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">हल्का 43</div>
+                    <div style="font-size:16px;font-weight:900;margin-bottom:10px;font-family:'Noto Sans Devanagari',sans-serif;line-height:1.2;">तिल्दा</div>
+                    <div style="display:flex;flex-direction:column;gap:7px;">
+                      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">मकबूजा रकबा</div>
+                          <div id="tld-maqbuza" style="font-size:16px;font-weight:900;margin-top:1px;">340.150 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🟢</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">गैरमकबूज़ा रकबा</div>
+                          <div id="tld-gair" style="font-size:16px;font-weight:900;margin-top:1px;">55.615 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🔴</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.18);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,0.25);">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.8;text-transform:uppercase;letter-spacing:0.07em;">कुल रकबा</div>
+                          <div id="tld-kul" style="font-size:17px;font-weight:900;margin-top:1px;">395.765 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.6;">📐</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- गबौद -->
+                  <div style="background:linear-gradient(160deg,#4c1d95 0%,#6d28d9 60%,#8b5cf6 100%); border-radius:16px; padding:14px 16px; color:#fff; box-shadow:0 4px 16px rgba(109,40,217,0.22); position:relative; overflow:hidden; flex:1; min-width:170px;">
+                    <div style="position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.07);"></div>
+                    <div style="font-size:10px;font-weight:800;opacity:0.65;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">हल्का 43</div>
+                    <div style="font-size:16px;font-weight:900;margin-bottom:10px;font-family:'Noto Sans Devanagari',sans-serif;line-height:1.2;">गबौद</div>
+                    <div style="display:flex;flex-direction:column;gap:7px;">
+                      <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">मकबूजा रकबा</div>
+                          <div id="gbd-maqbuza" style="font-size:16px;font-weight:900;margin-top:1px;">253.696 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🟢</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.07em;">गैरमकबूज़ा रकबा</div>
+                          <div id="gbd-gair" style="font-size:16px;font-weight:900;margin-top:1px;">29.870 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.5;">🔴</div>
+                      </div>
+                      <div style="background:rgba(255,255,255,0.18);border-radius:10px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,0.25);">
+                        <div>
+                          <div style="font-size:12px;font-weight:700;opacity:0.8;text-transform:uppercase;letter-spacing:0.07em;">कुल रकबा</div>
+                          <div id="gbd-kul" style="font-size:17px;font-weight:900;margin-top:1px;">283.566 हे.</div>
+                        </div>
+                        <div style="font-size:18px;opacity:0.6;">📐</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="dash-section-title">🌾 संपूर्ण फसल विवरण (ग्रामवार)</div>
+                <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border-radius:24px;padding:26px 28px;box-shadow:0 8px 32px rgba(0,0,0,0.22);position:relative;overflow:hidden;margin-top:16px;">
+                  <div style="position:relative;z-index:1;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                      <div style="font-size:24px;">🌾</div>
+                      <div>
+                        <div style="font-size:18px;font-weight:900;color:#fff;font-family:'Noto Sans Devanagari',sans-serif;">ग्राम चुनें और फसल विवरण देखें</div>
+                      </div>
+                    </div>
+
+                    <div style="position:relative;margin-bottom:20px;">
+                      <select id="statCropSelect" onchange="updateCropSummary()"
+                        style="width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:#fff;font-size:14px;font-weight:700;font-family:'Noto Sans Devanagari',sans-serif;appearance:none;cursor:pointer;outline:none;">
+                        <option value="" style="background:#1e293b;color:#fff;">— ग्राम चुनें —</option>
+                        ${grams.map(g => `<option value="${g}" style="background:#1e293b;color:#fff;">${g}</option>`).join('')}
+                      </select>
+                      <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:rgba(255,255,255,0.5);font-size:14px;">▼</div>
+                    </div>
+
+                    <!-- Crop Details Actions -->
+                    <div id="cropSummaryActions" style="display:none; gap:10px; margin-bottom:16px;">
+                        <button onclick="exportCropDetailsExcel()" class="btn-action" style="background:#059669;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;flex:1;justify-content:center;">
+                            <span>📊</span> एक्सल (Excel) डाउनलोड
+                        </button>
+                        <button onclick="printCropDetailsPDF()" class="btn-action" style="background:#1a1a6e;color:#fff;border:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;flex:1;justify-content:center;">
+                            <span>📄</span> पीडीएफ (PDF) प्रिंट
+                        </button>
+                    </div>
+
+                    <!-- Crop Details Table Container -->
+                    <div id="cropSummaryContainer" style="display:none; background:#fff; border-radius:16px; padding:12px; overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+                            <thead style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+                                <tr>
+                                    <th style="padding:12px 8px; color:#475569; font-weight:800;">क्र.</th>
+                                    <th style="padding:12px 8px; color:#475569; font-weight:800;">खसरा</th>
+                                    <th style="padding:12px 8px; color:#475569; font-weight:800;">बसरा</th>
+                                    <th style="padding:12px 8px; color:#475569; font-weight:800;">भूमिस्वामी</th>
+                                    <th style="padding:12px 8px; color:#065f46; font-weight:800;">खरीफ फसल</th>
+                                    <th style="padding:12px 8px; color:#065f46; font-weight:800;">क्षेत्रफल (हे.)</th>
+                                    <th style="padding:12px 8px; color:#1e40af; font-weight:800;">रबी फसल</th>
+                                    <th style="padding:12px 8px; color:#1e40af; font-weight:800;">क्षेत्रफल (हे.)</th>
+                                    <th style="padding:12px 8px; color:#3730a3; font-weight:800;">दुफसली (हे.)</th>
+                                    <th style="padding:12px 8px; color:#9a3412; font-weight:800;">डेटा स्त्रोत</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cropSummaryBody">
+                                <!-- JS will populate -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+            </div>\`;
+
+            statDiv.innerHTML = html;
+        }
+
+        // ── Card Function: Update Crop Details ──
+        let currentCropData = [];
+        let currentCropGram = '';
+
+        function updateCropSummary() {
+            const sel = document.getElementById('statCropSelect');
+            const cont = document.getElementById('cropSummaryContainer');
+            const tbody = document.getElementById('cropSummaryBody');
+            const actions = document.getElementById('cropSummaryActions');
+            if (!sel || !cont || !tbody) return;
+
+            const gram = sel.value;
+            if (!gram) {
+                cont.style.display = 'none';
+                actions.style.display = 'none';
+                return;
+            }
+
+            currentCropGram = gram;
+            const gramRecs = records.filter(r => r.v === gram);
+
+            // Sorting by khasra securely
+            gramRecs.sort((a, b) => {
+                const a1 = parseInt(a.kn) || 0;
+                const b1 = parseInt(b.kn) || 0;
+                return a1 - b1;
+            });
+
+            currentCropData = gramRecs;
+
+            cont.style.display = 'block';
+            actions.style.display = 'flex';
+            tbody.innerHTML = '';
+
+            if (gramRecs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:#64748b; font-weight:600;">कोई डेटा नहीं मिला</td></tr>`;
+                return;
+            }
+
+            const rowsHtml = gramRecs.map((r, i) => {
+                // Compute source flag
+                let sourceFlag = '';
+                const hasDCSKharif = r.rawKharifDCS && r.rawKharifDCS !== '--';
+                const hasDCSRabi = r.rawRabiDCS && r.rawRabiDCS !== '--';
+
+                if (hasDCSKharif || hasDCSRabi) {
+                    sourceFlag = '<span style="color:#059669; font-weight:800; background:#d1fae5; padding:4px 8px; border-radius:6px; font-size:11px;">DCS</span>';
+                } else if (!r.finalKharifCrop && !r.finalRabiCrop) {
+                    sourceFlag = '—';
+                } else {
+                    sourceFlag = '<span style="color:#dc2626; font-weight:800; background:#fee2e2; padding:4px 8px; border-radius:6px; font-size:11px;">DCS नहीं</span>';
+                }
+
+                return `
+                <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}; border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:10px 8px; font-weight:800; color:#64748b;">${i + 1}</td>
+                    <td style="padding:10px 8px; font-weight:800; color:#1e40af;">${r.kn}</td>
+                    <td style="padding:10px 8px; color:#475569;">${r.bn || '—'}</td>
+                    <td style="padding:10px 8px; color:#1e293b; font-weight:700;">${r.owner}</td>
+                    <td style="padding:10px 8px; color:#065f46; font-weight:600;">${r.finalKharifCrop || '—'}</td>
+                    <td style="padding:10px 8px; color:#065f46; font-weight:700;">${r.kharifCropArea > 0 ? r.kharifCropArea : '—'}</td>
+                    <td style="padding:10px 8px; color:#1e40af; font-weight:600;">${r.finalRabiCrop || '—'}</td>
+                    <td style="padding:10px 8px; color:#1e40af; font-weight:700;">${r.rabiCropArea > 0 ? r.rabiCropArea : '—'}</td>
+                    <td style="padding:10px 8px; color:#3730a3; font-weight:800;">${r.isDufasali ? r.dufasaliArea : '—'}</td>
+                    <td style="padding:10px 8px;">${sourceFlag}</td>
+                </tr>`;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+        }
+
+        // ── Card Function: Export Crop Excel ──
+        function exportCropDetailsExcel() {
+            if (!currentCropData.length) return;
+            let csvContent = "\uFEFF"; // BOM string for Hindi Excel
+            const headers = [
+                "क्र.", "खसरा नं.", "बसरा नं.", "भूमिस्वामी", "खरीफ फसल", "क्षेत्रफल (हे.)",
+                "रबी फसल", "क्षेत्रफल (हे.)", "दुफसली (हे.)", "डेटा स्त्रोत"
+            ];
+            csvContent += headers.join(",") + "\n";
+
+            currentCropData.forEach((r, i) => {
+                let sourceText = '';
+                const hasDCSKharif = r.rawKharifDCS && r.rawKharifDCS !== '--';
+                const hasDCSRabi = r.rawRabiDCS && r.rawRabiDCS !== '--';
+                if (hasDCSKharif || hasDCSRabi) sourceText = 'DCS';
+                else if (!r.finalKharifCrop && !r.finalRabiCrop) sourceText = '-';
+                else sourceText = 'DCS नहीं';
+
+                const row = [
+                    i + 1,
+                    `"${r.kn}"`,
+                    `"${r.bn || '-'}"`,
+                    `"${(r.owner || '').replace(/"/g, '""')}"`,
+                    `"${r.finalKharifCrop || '-'}"`,
+                    `"${r.kharifCropArea > 0 ? r.kharifCropArea : '-'}"`,
+                    `"${r.finalRabiCrop || '-'}"`,
+                    `"${r.rabiCropArea > 0 ? r.rabiCropArea : '-'}"`,
+                    `"${r.isDufasali ? r.dufasaliArea : '-'}"`,
+                    `"${sourceText}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Fasal_Vivaran_${currentCropGram.replace(/\s+/g, '_')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ── Card Function: Print Crop PDF ──
+        function printCropDetailsPDF() {
+            if (!currentCropData.length) return;
+
+            const rowsHtml = currentCropData.map((r, i) => {
+                let sourceText = '';
+                const hasDCSKharif = r.rawKharifDCS && r.rawKharifDCS !== '--';
+                const hasDCSRabi = r.rawRabiDCS && r.rawRabiDCS !== '--';
+                if (hasDCSKharif || hasDCSRabi) sourceText = '<span style="color:#059669; font-weight:800;">DCS</span>';
+                else if (!r.finalKharifCrop && !r.finalRabiCrop) sourceText = '—';
+                else sourceText = '<span style="color:#dc2626; font-weight:800;">DCS नहीं</span>';
+
+                return `
+                <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'};">
+                    <td style="text-align:center; font-weight:800;">${i + 1}</td>
+                    <td style="font-weight:800; text-align:center;">${r.kn}</td>
+                    <td style="text-align:center;">${r.bn || '—'}</td>
+                    <td>${r.owner}</td>
+                    <td style="color:#065f46;">${r.finalKharifCrop || '—'}</td>
+                    <td style="text-align:right;">${r.kharifCropArea > 0 ? r.kharifCropArea : '—'}</td>
+                    <td style="color:#1e40af;">${r.finalRabiCrop || '—'}</td>
+                    <td style="text-align:right;">${r.rabiCropArea > 0 ? r.rabiCropArea : '—'}</td>
+                    <td style="text-align:right;">${r.isDufasali ? r.dufasaliArea : '—'}</td>
+                    <td style="text-align:center;">${sourceText}</td>
+                </tr>`;
+            }).join('');
+
+            const pw = window.open('', '_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.', 'error'); return; }
+
+            pw.document.write(`<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="UTF-8">
+<title>संपूर्ण फसल विवरण - ${currentCropGram}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; padding:20px; color:#1a1a1a; background:#fff; }
+  h1 { text-align:center; font-size:22px; font-weight:800; margin-bottom:4px; color:#1a1a6e; }
+  .subtitle { text-align:center; font-size:14px; color:#555; margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px; }
+  th,td { border:1px solid #e2e8f0; padding:6px 8px; text-align:left; vertical-align:middle; }
+  th { background:#1a1a6e; color:#fff; font-weight:700; font-size:12px; text-align:center; }
+  .footer { margin-top:24px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #e2e8f0; padding-top:12px; }
+  @media print { body { padding:10px; } }
+</style></head><body>
+<h1>🌾 संपूर्ण फसल विवरण</h1>
+<p class="subtitle">ग्राम: ${currentCropGram} | दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+<table>
+  <thead><tr>
+     <th style="width:40px;">क्र.</th>
+     <th>खसरा नं.</th>
+     <th>बसरा नं.</th>
+     <th style="width:25%;">भूमिस्वामी</th>
+     <th>खरीफ फसल</th>
+     <th>क्षेत्रफल (हे.)</th>
+     <th>रबी फसल</th>
+     <th>क्षेत्रफल (हे.)</th>
+     <th>दुफसली (हे.)</th>
+     <th>डेटा स्त्रोत</th>
+  </tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
+<p class="footer">भूमि रिकॉर्ड डैशबोर्ड — कम्प्यूटर जनित फसल विवरण रिपोर्ट</p>
+</body></html>`);
+            pw.document.close();
+        }
+
+        // ── Government Records Page ────────────────────────────
+        function showGovRecords() {
+            const govDiv = document.getElementById('govDiv');
+            govDiv.style.display = '';
+
+            if (!records.length) {
+                govDiv.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--text-muted);font-size:16px;font-weight:600;">⏳ पहले डेटा लोड होने दें...</div>`;
+                return;
+            }
+
+            // Identify unique villages for dropdown and sort by custom order
+            const desiredOrder = ['छेरकापुर (हल्का 28)', 'छड़िया (हल्का 28)', 'तिल्दा (हल्का 43)', 'गबौद (हल्का 43)'];
+            const grams = [...new Set(records.map(r => r.v).filter(Boolean))].sort((a, b) => {
+                const idxA = desiredOrder.indexOf(a);
+                const idxB = desiredOrder.indexOf(b);
+                return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+            });
+
+            let html = `
+            <div style="animation:slideUp 0.4s ease both; max-width:900px; margin:0 auto;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+                <h2 style="font-size:22px;font-weight:900;color:var(--royal);font-family:'Noto Sans Devanagari',sans-serif;">
+                  🏛️ शासकीय भूमि रिकॉर्ड्स (हल्का 28 एवं 43)
+                </h2>
+              </div>
+
+              <!-- Search Card for Govt Records -->
+              <div class="search-card fade-in" style="margin-bottom:32px;">
+                 <div style="display:grid; gap:18px;">
+                    <!-- Village -->
+                    <div>
+                        <label class="form-label">🏘️ ग्राम चुनें</label>
+                        <div class="select-wrap">
+                            <select id="govVillageSelect" class="form-select" onchange="populateGovNistarDropdown()">
+                                <option value="" disabled selected>— ग्राम चुनें —</option>
+                                ${grams.map(g => `<option value="${g}">${g}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Govt Land Type -->
+                    <div>
+                        <label class="form-label">🏞️ भूमि का प्रकार</label>
+                        <div class="select-wrap">
+                            <select id="govTypeSelect" class="form-select" onchange="handleGovTypeChange()">
+                                <option value="" disabled selected>— प्रकार चुनें —</option>
+                                <option value="charai">चराई भूमि</option>
+                                <option value="ceiling">सीलिंग भूमि</option>
+                                <option value="nistar">निस्तार/वाजिबुल अर्ज़ का विवरण (हल्का 28 एवं 43)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Nistar Details -->
+                    <div id="govNistarDiv" style="display:none;">
+                        <label class="form-label">📜 निस्तार विवरण चुनें</label>
+                        <div class="select-wrap">
+                            <select id="govNistarSelect" class="form-select">
+                                <option value="" disabled selected>— पहले ग्राम चुनें —</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-search" onclick="handleGovSearch()" style="margin-top:4px;">
+                        <span id="btnLabelGov">खोजें</span>
+                    </button>
+                 </div>
+              </div>
+
+              <!-- Results Area -->
+              <div id="govTableContainer" style="display:none; animation:slideUp 0.4s ease both;">
+                 <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                    <h3 id="govTableTitle" style="font-size:18px; font-weight:800; color:var(--royal);"></h3>
+                    <div style="display:flex; gap:10px;">
+                       <button onclick="exportGovTableCSV()" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(5,150,105,0.3);display:flex;align-items:center;gap:6px;">
+                         📊 Excel/CSV
+                       </button>
+                       <button onclick="exportGovTablePDF()" style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(220,38,38,0.3);display:flex;align-items:center;gap:6px;">
+                         🖨️ PDF Print
+                       </button>
+                    </div>
+                 </div>
+                 
+                 <!-- Summary Cards -->
+                 <div id="govSummaryCards" style="display:none; gap:14px; margin-bottom:20px; flex-wrap:wrap;">
+                    <div class="stat-chip" style="flex:1; min-width:120px; background:#f0f4ff; border:1px solid #d1d9ff; padding:16px 20px;">
+                        <div class="stat-chip-label" style="color:#1a1a6e; opacity:0.8; font-size:14px;">कुल खसरे</div>
+                        <div class="stat-chip-val" id="govSumCount" style="color:#1a1a6e; font-size:32px;">0</div>
+                    </div>
+                    <div class="stat-chip" style="flex:1; min-width:120px; background:#f8fafc; border:1px solid #cbd5e1; padding:16px 20px;">
+                        <div class="stat-chip-label" style="color:#0f766e; opacity:0.8; font-size:14px;">कुल रकबा (हे.)</div>
+                        <div class="stat-chip-val" id="govSumArea" style="color:#0f766e; font-size:32px;">0</div>
+                    </div>
+                 </div>
+                 
+                 <div style="background:#fff; border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-card); overflow-x:auto;">
+                   <table style="width:100%; border-collapse:collapse; min-width:700px; font-size:14px;">
+                     <thead>
+                       <tr style="background:linear-gradient(135deg,#1a1a6e,#2d2db0); color:#fff; text-align:left;">
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">क्र.</th>
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">खसरा नं.</th>
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">बसरा नं.</th>
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">रकबा (हे.)</th>
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">भूमिस्वामी का नाम</th>
+                         <th style="padding:16px; font-weight:700; border-bottom:2px solid #000;">निस्तार विवरण</th>
+                       </tr>
+                     </thead>
+                     <tbody id="govTableBody">
+                     </tbody>
+                   </table>
+                 </div>
+                 
+                 <!-- Empty Result message specific to Govt Tab -->
+                 <div id="govEmptyMsg" style="display:none; text-align:center; padding:40px; background:#fff; border-radius:16px; border:1px dashed var(--border); margin-top:20px;">
+                    <div style="font-size:40px; margin-bottom:10px;">🔍</div>
+                    <div style="font-weight:700; color:var(--text-muted);">इस प्रकार की कोई भूमि नहीं मिली।</div>
+                 </div>
+
+              </div>
+            </div>`;
+            govDiv.innerHTML = html;
+        }
+
+        let currentGovData = [];
+        let currentGovTitle = '';
+
+        function handleGovTypeChange() {
+            const type = document.getElementById('govTypeSelect').value;
+            const nistarDiv = document.getElementById('govNistarDiv');
+            if (type === 'nistar') {
+                nistarDiv.style.display = 'block';
+                populateGovNistarDropdown();
+            } else {
+                nistarDiv.style.display = 'none';
+            }
+        }
+
+        function populateGovNistarDropdown() {
+            const vill = document.getElementById('govVillageSelect').value;
+            const type = document.getElementById('govTypeSelect')?.value;
+            const nistarSelect = document.getElementById('govNistarSelect');
+            if (!nistarSelect) return;
+
+            if (type === 'nistar' && vill) {
+                const vals = [...new Set(records.filter(r => r.v === vill && r.nistar && r.nistar.trim().length > 0 && r.nistar.trim() !== 'नहीं' && r.nistar.trim() !== '-').map(r => r.nistar.trim()))].sort((a, b) => a.localeCompare(b, 'hi'));
+                if (vals.length > 0) {
+                    nistarSelect.innerHTML = `<option value="" disabled selected>— निस्तार विवरण चुनें —</option>` + vals.map(v => `<option value="${v}">${v}</option>`).join('');
+                } else {
+                    nistarSelect.innerHTML = `<option value="" disabled selected>— कोई विवरण नहीं —</option>`;
+                }
+            } else if (!vill) {
+                nistarSelect.innerHTML = `<option value="" disabled selected>— पहले ग्राम चुनें —</option>`;
+            }
+        }
+
+        function handleGovSearch() {
+            const vill = document.getElementById('govVillageSelect').value;
+            const type = document.getElementById('govTypeSelect').value;
+
+            if (!vill) { toast('कृपया ग्राम चुनें', 'error'); return; }
+            if (!type) { toast('कृपया भूमि का प्रकार चुनें', 'error'); return; }
+
+            let nistarVal = '';
+            if (type === 'nistar') {
+                nistarVal = document.getElementById('govNistarSelect').value;
+                if (!nistarVal) { toast('कृपया निस्तार विवरण चुनें', 'error'); return; }
+            }
+
+            // Filter logic
+            if (type === 'charai') {
+                currentGovTitle = `चराई भूमि रिकॉर्ड्स - ${vill}`;
+                // Using simple string match - adjust if the exact CSV column format differs. 
+                // e.g., if 'हाँ' or specific text is stored there. 
+                currentGovData = records.filter(r => r.v === vill && r.charai && r.charai.trim().length > 0 && r.charai !== 'नहीं');
+            } else if (type === 'ceiling') {
+                currentGovTitle = `सीलिंग भूमि रिकॉर्ड्स - ${vill}`;
+                currentGovData = records.filter(r => r.v === vill && r.ceiling && r.ceiling.trim().length > 0 && r.ceiling !== 'नहीं');
+            } else if (type === 'nistar') {
+                currentGovTitle = `निस्तार विवरण: ${nistarVal} - ${vill}`;
+                currentGovData = records.filter(r => r.v === vill && r.nistar && r.nistar.trim() === nistarVal);
+            }
+
+            // Render table
+            const cont = document.getElementById('govTableContainer');
+            const tbody = document.getElementById('govTableBody');
+            const emptyMsg = document.getElementById('govEmptyMsg');
+            const titleEl = document.getElementById('govTableTitle');
+            const sumCards = document.getElementById('govSummaryCards');
+
+            cont.style.display = 'block';
+            titleEl.textContent = `${currentGovTitle} (${currentGovData.length})`;
+            tbody.innerHTML = '';
+
+            if (currentGovData.length === 0) {
+                emptyMsg.style.display = 'block';
+                document.querySelector('#govTableContainer table').style.display = 'none';
+                if (sumCards) sumCards.style.display = 'none';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            document.querySelector('#govTableContainer table').style.display = 'table';
+
+            if (sumCards) {
+                sumCards.style.display = 'flex';
+                document.getElementById('govSumCount').textContent = currentGovData.length;
+                const totalArea = currentGovData.reduce((s, r) => s + parseFloat(r.area || 0), 0);
+                document.getElementById('govSumArea').textContent = totalArea.toFixed(3);
+            }
+
+            // Sorting by khasra (basic numeric sort)
+            currentGovData.sort((a, b) => {
+                const a1 = parseInt(a.kn) || 0;
+                const b1 = parseInt(b.kn) || 0;
+                return a1 - b1;
+            });
+
+            currentGovData.forEach((r, idx) => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border)';
+                tr.style.background = idx % 2 === 0 ? '#f8fafc' : '#fff';
+                tr.innerHTML = `
+                    <td style="padding:14px 16px; font-weight:800; color:var(--text-muted);">${idx + 1}</td>
+                    <td style="padding:14px 16px; font-weight:800; color:var(--royal);">${r.kn}</td>
+                    <td style="padding:14px 16px; font-weight:600;">${r.bn || '—'}</td>
+                    <td style="padding:14px 16px; font-weight:800; text-align:right;">${r.area}</td>
+                    <td style="padding:14px 16px; font-weight:700; color:var(--text-main);">${r.owner}</td>
+                    <td style="padding:14px 16px; font-size:13px; color:var(--text-muted); max-width:250px;">${r.nistar || '—'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Export CSV Function
+        function exportGovTableCSV() {
+            if (!currentGovData.length) return;
+            // Standard CSV Build Strategy using PapaParse logic or manual encoding
+            let csvContent = "\uFEFF"; // BOM for excel UTF-8
+            csvContent += "क्र.,खसरा नं.,बसरा नं.,रकबा (हे.),भूमिस्वामी का नाम,निस्तार विवरण\n";
+
+            currentGovData.forEach((r, i) => {
+                let row = [
+                    i + 1,
+                    `"${r.kn}"`,
+                    `"${r.bn || ''}"`,
+                    `"${r.area}"`,
+                    `"${(r.owner || '').replace(/"/g, '""')}"`,
+                    `"${(r.nistar || '').replace(/"/g, '""')}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${currentGovTitle.replace(/\s+/g, '_')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Export PDF Function (Similar to Lovable styling logic)
+        function exportGovTablePDF() {
+            if (!currentGovData.length) return;
+
+            const rowsHtml = currentGovData.map((r, i) => `
+              <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#fff'}">
+                <td style="text-align:center;font-weight:800;">${i + 1}</td>
+                <td style="font-weight:800;text-align:center;">${r.kn}</td>
+                <td style="text-align:center;">${r.bn || '—'}</td>
+                <td style="text-align:right;font-weight:800;">${r.area}</td>
+                <td>${r.owner}</td>
+                <td style="font-size:12px;">${r.nistar || '—'}</td>
+              </tr>`).join('');
+
+            const totalArea = currentGovData.reduce((s, r) => s + parseFloat(r.area || 0), 0).toFixed(3);
+
+            const pw = window.open('', '_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.', 'error'); return; }
+
+            pw.document.write(`<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="UTF-8">
+<title>${currentGovTitle}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; padding:30px; color:#1a1a1a; background:#fff; }
+  h1 { text-align:center; font-size:22px; font-weight:800; margin-bottom:4px; color:#1a1a6e; }
+  .subtitle { text-align:center; font-size:14px; color:#555; margin-bottom:20px; }
+  .summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:24px; justify-content:center; }
+  .summary-item { background:#f0f4ff; border:1px solid #d1d9ff; border-radius:10px; padding:12px 20px; text-align:center; min-width:120px; }
+  .summary-item .val { font-size:22px; font-weight:900; color:#1a1a6e; }
+  .summary-item .lbl { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; }
+  th,td { border:1px solid #e2e8f0; padding:10px 14px; text-align:left; vertical-align:middle; }
+  th { background:#1a1a6e; color:#fff; font-weight:700; font-size:13px; text-align:center; }
+  .footer { margin-top:24px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #e2e8f0; padding-top:12px; }
+  @media print { body { padding:15px; } }
+</style></head><body>
+<h1>🏛️ ${currentGovTitle}</h1>
+<p class="subtitle">दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+<div class="summary">
+  <div class="summary-item"><div class="val">${currentGovData.length}</div><div class="lbl">कुल खसरे</div></div>
+  <div class="summary-item"><div class="val">${totalArea} हे.</div><div class="lbl">कुल क्षेत्रफल</div></div>
+</div>
+<table>
+  <thead><tr>
+     <th style="width:50px; text-align:center;">क्र.</th>
+     <th style="text-align:center;">खसरा नं.</th>
+     <th style="text-align:center;">बसरा नं.</th>
+     <th style="text-align:center;">रकबा (हे.)</th>
+     <th style="width:30%; text-align:center;">भूमिस्वामी का नाम</th>
+     <th style="width:30%; text-align:center;">निस्तार विवरण</th>
+  </tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
+<p class="footer">भूमि रिकॉर्ड डैशबोर्ड — हल्का 43 एवं 28 | कम्प्यूटर जनित रिकॉर्ड</p>
+</body></html>`);
+            pw.document.close();
+        }
+
+        // ── Gram-wise Land Summary (Statistics Tab) ──
+        function updateGramSummary() {
+            const sel = document.getElementById('statGramSelect');
+            const cards = document.getElementById('statGramCards');
+            const placeholder = document.getElementById('statGramPlaceholder');
+            if (!sel || !cards) return;
+
+            const gram = sel.value;
+            if (!gram) {
+                cards.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'block';
+                return;
+            }
+
+            // सभी records उस ग्राम के
+            const gramRecs = records.filter(r => r.v === gram);
+
+            // ── Helper: keyword से seed records निकालो, फिर उनके basra से expand करो ──
+            function expandByBasra(keyword) {
+                // Step 1: seed records — owner में keyword हो
+                const seedRecs = gramRecs.filter(r =>
+                    r.owner && r.owner.includes(keyword)
+                );
+                if (seedRecs.length === 0) return [];
+
+                // Step 2: seed records के सभी unique basra numbers
+                const basraSet = new Set(
+                    seedRecs
+                        .map(r => (r.bn || '').trim())
+                        .filter(b => b && b !== '' && b !== '-' && b !== '0')
+                );
+
+                // Step 3: उन basra numbers के सभी records (same village)
+                const expanded = gramRecs.filter(r =>
+                    basraSet.has((r.bn || '').trim())
+                );
+
+                // seed + expanded (dedup by khasra+basra)
+                const seen = new Set();
+                const all = [...seedRecs, ...expanded].filter(r => {
+                    const key = `${r.kn}|${r.bn}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                return all;
+            }
+
+            const govtAll  = expandByBasra('शासकीय');
+            const privAll  = expandByBasra('भूमिस्वामी');
+
+            const govtCount = govtAll.length;
+            const govtArea  = govtAll.reduce((s, r) => s + parseFloat(r.area || 0), 0);
+            const privCount = privAll.length;
+            const privArea  = privAll.reduce((s, r) => s + parseFloat(r.area || 0), 0);
+            const totalArea = (govtArea + privArea).toFixed(3);
+
+            document.getElementById('stat-gov-count').textContent  = govtCount  || '0';
+            document.getElementById('stat-gov-area').textContent   = govtArea.toFixed(3)   || '0.000';
+            document.getElementById('stat-priv-count').textContent = privCount  || '0';
+            document.getElementById('stat-priv-area').textContent  = privArea.toFixed(3)   || '0.000';
+            document.getElementById('stat-total-count').textContent = (govtCount + privCount) || '0';
+            document.getElementById('stat-total-area').textContent  = totalArea;
+
+            cards.style.display = 'grid';
+            const totalDiv = document.getElementById('statGramTotal');
+            if (totalDiv) totalDiv.style.display = 'flex';
+            if (placeholder) placeholder.style.display = 'none';
+        }
+
+        // ── Init ──────────────────────────────────────
+
+        switchTab('dashboard'); // Ensure dashboard is shown on load (hides search form)
+        loadData();
+
