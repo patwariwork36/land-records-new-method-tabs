@@ -805,31 +805,39 @@
         const VILLAGE_TABS = {
             'छेरकापुर': {
                 halka: 28,
-                khasra:   1125745063,
-                dcsKharif: 812281055,
-                dcsRabi:   500848412,
-                bhuiyya:   297442845,
+                khasra:        1125745063,
+                dcsKharif:      812281055,
+                dcsRabi:        500848412,
+                bhuiyya:        297442845,
+                charaiCeiling: 1665923394,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
+                nistarPatrak:  1804672264,   // निस्तार पत्रक डिटेल्स
             },
             'छड़िया': {
                 halka: 28,
-                khasra:   1702197918,
-                dcsKharif: 8447409,
-                dcsRabi:   1499142573,
-                bhuiyya:   1174875375,
+                khasra:        1702197918,
+                dcsKharif:        8447409,
+                dcsRabi:       1499142573,
+                bhuiyya:       1174875375,
+                charaiCeiling: 1740498830,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
+                nistarPatrak:  1031814681,   // निस्तार पत्रक डिटेल्स
             },
             'तिल्दा': {
                 halka: 43,
-                khasra:   405640121,
-                dcsKharif: 747813224,
-                dcsRabi:   1746853077,
-                bhuiyya:   1408389150,
+                khasra:         405640121,
+                dcsKharif:      747813224,
+                dcsRabi:       1746853077,
+                bhuiyya:       1408389150,
+                charaiCeiling: 1518461563,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
+                nistarPatrak:   795996909,   // निस्तार पत्रक डिटेल्स
             },
             'गबौद': {
                 halka: 43,
-                khasra:   420059656,
-                dcsKharif: 153278540,
-                dcsRabi:   459902298,
-                bhuiyya:   29039308,
+                khasra:         420059656,
+                dcsKharif:      153278540,
+                dcsRabi:        459902298,
+                bhuiyya:         29039308,
+                charaiCeiling:  602533391,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
+                nistarPatrak:  2065179140,   // निस्तार पत्रक डिटेल्स
             },
         };
 
@@ -880,8 +888,8 @@
             });
         }
 
-        // ── एक गाँव का मर्ज: खसरा लिस्ट + DCS खरीफ + DCS रबी + भुइया खरीफ ──
-        function mergeVillageData(villageName, halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows) {
+        // ── एक गाँव का मर्ज: खसरा लिस्ट + DCS खरीफ + DCS रबी + भुइया खरीफ + चराई/सीलिंग + निस्तार पत्रक ──
+        function mergeVillageData(villageName, halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows, charaiRows = [], nistarRows = []) {
             const vLabel = `${villageName} (हल्का ${halka})`;
 
             // DCS खरीफ lookup: Survey Number → row (एक खसरे पर एक ही DCS row लेंगे)
@@ -903,6 +911,20 @@
             bhuiyyaRows.forEach(row => {
                 const kn = (row['खसरा क्रमांक'] || '').trim();
                 if (kn && !bhuiyyaMap[kn]) bhuiyyaMap[kn] = row;
+            });
+
+            // चराई/सीलिंग lookup: खसरा नंबर → row (सभी khasra records with type, sinchai, charai, ceiling data)
+            const charaiMap = {};
+            charaiRows.forEach(row => {
+                const kn = (row['खसरा नंबर'] || '').trim();
+                if (kn && !charaiMap[kn]) charaiMap[kn] = row;
+            });
+
+            // निस्तार पत्रक lookup: खसरा नंबर → row (only special/nistar entries)
+            const nistarMap = {};
+            nistarRows.forEach(row => {
+                const kn = (row['खसरा नंबर'] || '').trim();
+                if (kn && !nistarMap[kn]) nistarMap[kn] = row;
             });
 
             function isBl(v) { return v === null || v === undefined || v === ''; }
@@ -945,6 +967,18 @@
                 const cropNameZ     = bh ? (bh['फसल का नाम'] || '').trim() : '';
                 const rakbaSinchit  = bh ? parseFloat(bh['रकबा सिंचित फसल']  || 0) : 0;
                 const rakbaAsinchit = bh ? parseFloat(bh['रकबा असिंचित फसल'] || 0) : 0;
+
+                // ── चराई/सीलिंग/सिंचित-असिंचित data ──
+                const ch = charaiMap[kn] || null;
+                const sinchaiType   = ch ? (ch['सिंचित / असिंचित'] || '').trim() : '';
+                const charaiLand    = ch ? (ch['चराई भूमि है ?']   || '').trim() : '';
+                const ceilingLand   = ch ? (ch['सीलिंग भूमि है ?'] || '').trim() : '';
+                const nistarVivaran = ch ? (ch['निस्तार पत्रक / वाजिबुल अर्ज विवरण'] || '').trim() : '';
+
+                // ── निस्तार पत्रक tab – special nistar entry check ──
+                const ns = nistarMap[kn] || null;
+                const isNistarEntry = !!ns;   // true if this khasra has a dedicated nistar record
+                const nistarPatrakVivaran = ns ? (ns['निस्तार पत्रक / वाजिबुल अर्ज विवरण'] || '').trim() : '';
 
                 // ── DCS blank check (same logic) ──
                 const kharifDCSBlank = !dk;   // DCS खरीफ tab में entry नहीं = blank
@@ -1009,10 +1043,12 @@
                     ownerKey:   ownerKey || 'अज्ञात',
                     ownerNames: ownerNames.length ? ownerNames : ['अज्ञात'],
                     area:  parseFloat(o['क्षेत्रफल'] || 0).toFixed(3),
-                    type:  '',          // नई sheet में यह column नहीं है
-                    nistar: '',         // नई sheet में यह column नहीं है
-                    charai:  '',
-                    ceiling: '',
+                    type:  sinchaiType,          // चराई/सीलिंग tab से सिंचित/असिंचित
+                    nistar: nistarVivaran,        // चराई/सीलिंग tab से निस्तार विवरण
+                    charai:  charaiLand,          // चराई भूमि है?
+                    ceiling: ceilingLand,         // सीलिंग भूमि है?
+                    isNistarEntry:        isNistarEntry,          // निस्तार पत्रक tab में entry है?
+                    nistarPatrakVivaran:  nistarPatrakVivaran,    // निस्तार पत्रक tab का विशेष विवरण
 
                     kharifDCSBlank:  kharifDCSBlank,
                     rabiDCSBlank:    rabiDCSBlank,
@@ -1066,18 +1102,20 @@
             }
 
             try {
-                badge.textContent = '⏳ सभी tabs लोड हो रहे हैं (16 tabs)...';
+                badge.textContent = '⏳ सभी tabs लोड हो रहे हैं (24 tabs)...';
 
                 // सभी गाँवों के लिए parallel fetch
                 const villageNames = Object.keys(VILLAGE_TABS);
                 const villageResults = await Promise.all(
                     villageNames.map(async (vName) => {
                         const cfg = VILLAGE_TABS[vName];
-                        const [khasraCSV, dcsKCSV, dcsRCSV, bhuiyyaCSV] = await Promise.all([
+                        const [khasraCSV, dcsKCSV, dcsRCSV, bhuiyyaCSV, charaiCSV, nistarCSV] = await Promise.all([
                             fetchCSV(cfg.khasra),
                             fetchCSV(cfg.dcsKharif),
                             fetchCSV(cfg.dcsRabi),
                             fetchCSV(cfg.bhuiyya),
+                            fetchCSV(cfg.charaiCeiling),
+                            fetchCSV(cfg.nistarPatrak),
                         ]);
 
                         // खसरा लिस्ट: row 1 = title, row 2 = header (index 1)
@@ -1087,8 +1125,12 @@
                         const dcsRRows    = parseCSVToRows(dcsRCSV,    0);
                         // भुइया: row 1-2 = title/date, row 3 = header (index 2)
                         const bhuiyyaRows = parseCSVToRows(bhuiyyaCSV, 2);
+                        // चराई/सीलिंग tab: row 1 = title, row 2 = header (index 1)
+                        const charaiRows  = parseCSVToRows(charaiCSV,  1);
+                        // निस्तार पत्रक tab: row 1 = title, row 2 = header (index 1)
+                        const nistarRows  = parseCSVToRows(nistarCSV,  1);
 
-                        return mergeVillageData(vName, cfg.halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows);
+                        return mergeVillageData(vName, cfg.halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows, charaiRows, nistarRows);
                     })
                 );
 
