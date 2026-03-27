@@ -913,17 +913,28 @@
                 if (kn && !bhuiyyaMap[kn]) bhuiyyaMap[kn] = row;
             });
 
-            // चराई/सीलिंग lookup: खसरा नंबर → row (सभी khasra records with type, sinchai, charai, ceiling data)
+            // helper: किसी row से multiple possible column names में से पहला valid value निकालना
+            function getCol(row, ...keys) {
+                if (!row) return '';
+                for (const k of keys) {
+                    const v = row[k];
+                    if (v !== undefined && v !== null && v.toString().trim() !== '') return v.toString().trim();
+                }
+                return '';
+            }
+
+            // चराई/सीलिंग lookup: खसरा नंबर → row
+            // तिल्दा में 'खसरा नम्बर' (anunasik 'म' variant) है, बाकी में 'खसरा नंबर'
             const charaiMap = {};
             charaiRows.forEach(row => {
-                const kn = (row['खसरा नंबर'] || '').trim();
+                const kn = getCol(row, 'खसरा नंबर', 'खसरा नम्बर', 'खसरा नम्‍बर');
                 if (kn && !charaiMap[kn]) charaiMap[kn] = row;
             });
 
             // निस्तार पत्रक lookup: खसरा नंबर → row (only special/nistar entries)
             const nistarMap = {};
             nistarRows.forEach(row => {
-                const kn = (row['खसरा नंबर'] || '').trim();
+                const kn = getCol(row, 'खसरा नंबर', 'खसरा नम्बर', 'खसरा नम्‍बर');
                 if (kn && !nistarMap[kn]) nistarMap[kn] = row;
             });
 
@@ -970,15 +981,30 @@
 
                 // ── चराई/सीलिंग/सिंचित-असिंचित data ──
                 const ch = charaiMap[kn] || null;
-                const sinchaiType   = ch ? (ch['सिंचित / असिंचित'] || '').trim() : '';
-                const charaiLand    = ch ? (ch['चराई भूमि है ?']   || '').trim() : '';
-                const ceilingLand   = ch ? (ch['सीलिंग भूमि है ?'] || '').trim() : '';
-                const nistarVivaran = ch ? (ch['निस्तार पत्रक / वाजिबुल अर्ज विवरण'] || '').trim() : '';
+                // सिंचित/असिंचित: गबौद में 'सिंचित'/'असिंचित' (बिना 'भूमि'), बाकी में 'सिंचित भूमि'/'असिंचित भूमि'
+                const sinchaiRaw    = getCol(ch, 'सिंचित / असिंचित');
+                const sinchaiType   = sinchaiRaw;
+                const charaiLand    = getCol(ch, 'चराई भूमि है ?');
+                const ceilingLand   = getCol(ch, 'सीलिंग भूमि है ?', 'सीलिंग भूमि है?');
+                // निस्तार विवरण column का नाम tabs में अलग-अलग है
+                const nistarVivaran = getCol(ch,
+                    'निस्तार पत्रक / वाजिबुल अर्ज विवरण',
+                    'निस्तार पत्रक विवरण',
+                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज',
+                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज ',
+                    'निस्तार पत्रक विवरण/वाजिबुल अर्ज विवरण'
+                );
 
                 // ── निस्तार पत्रक tab – special nistar entry check ──
                 const ns = nistarMap[kn] || null;
                 const isNistarEntry = !!ns;   // true if this khasra has a dedicated nistar record
-                const nistarPatrakVivaran = ns ? (ns['निस्तार पत्रक / वाजिबुल अर्ज विवरण'] || '').trim() : '';
+                const nistarPatrakVivaran = getCol(ns,
+                    'निस्तार पत्रक / वाजिबुल अर्ज विवरण',
+                    'निस्तार पत्रक विवरण',
+                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज',
+                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज ',
+                    'निस्तार पत्रक विवरण/वाजिबुल अर्ज विवरण'
+                );
 
                 // ── DCS blank check (same logic) ──
                 const kharifDCSBlank = !dk;   // DCS खरीफ tab में entry नहीं = blank
