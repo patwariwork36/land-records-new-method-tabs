@@ -2683,7 +2683,7 @@ ${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;ma
                 }
             });
 
-            const renderStatCol = (stats, title, themeColor, bgGradient, icon) => {
+            const renderStatCol = (stats, title, themeColor, bgGradient, icon, season) => {
                 const entries = Object.entries(stats).sort((a,b) => b[1].area - a[1].area);
                 if (entries.length === 0) return '';
                 
@@ -2696,11 +2696,13 @@ ${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;ma
                 `;
 
                 entries.forEach(([name, data]) => {
+                    const safeGram = encodeURIComponent(currentCropGram);
+                    const safeName = encodeURIComponent(name);
                     colHtml += `
                         <div style="background:${bgGradient}; border-radius:18px; padding:16px 20px; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,0.12); position:relative; overflow:hidden; border:1px solid rgba(255,255,255,0.15);">
                             <div style="position:absolute; top:-12px; right:-12px; font-size:48px; opacity:0.12; transform:rotate(15deg);">${icon}</div>
                             <div style="font-size:16px; font-weight:800; margin-bottom:10px; font-family:'Noto Sans Devanagari',sans-serif; text-shadow:0 2px 4px rgba(0,0,0,0.1);">${name}</div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px;">
                                 <div style="background:rgba(255,255,255,0.12); padding:8px 12px; border-radius:12px; flex:1; margin-right:8px;">
                                     <div style="font-size:10px; font-weight:700; opacity:0.75; text-transform:uppercase; letter-spacing:0.04em;">कुल खसरे</div>
                                     <div style="font-size:20px; font-weight:900;">${data.count}</div>
@@ -2710,6 +2712,12 @@ ${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;ma
                                     <div style="font-size:20px; font-weight:900;">${data.area.toFixed(3)}</div>
                                 </div>
                             </div>
+                            <!-- खसरा सूची बटन -->
+                            <button onclick="openCropKhasraModal('${safeGram}','${safeName}','${season}')"
+                                style="width:100%;padding:8px 14px;border-radius:12px;border:2px solid rgba(255,255,255,0.5);background:rgba(255,255,255,0.15);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans Devanagari',sans-serif;transition:background 0.2s;display:flex;align-items:center;justify-content:center;gap:6px;"
+                                onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                                📋 खसरा सूची देखें
+                            </button>
                         </div>
                     `;
                 });
@@ -2718,8 +2726,8 @@ ${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;ma
                 return colHtml;
             };
 
-            const khCol = renderStatCol(kharifStats, 'खरीफ फसल विवरण', '#059669', 'linear-gradient(135deg,#065f46 0%,#059669 100%)', '🌾');
-            const rbCol = renderStatCol(rabiStats, 'रबी फसल विवरण', '#1e40af', 'linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)', '🚜');
+            const khCol = renderStatCol(kharifStats, 'खरीफ फसल विवरण', '#059669', 'linear-gradient(135deg,#065f46 0%,#059669 100%)', '🌾', 'kharif');
+            const rbCol = renderStatCol(rabiStats, 'रबी फसल विवरण', '#1e40af', 'linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%)', '🚜', 'rabi');
 
             if (statCardsDiv) {
                 if (khCol || rbCol) {
@@ -2733,6 +2741,175 @@ ${uniqueBasras ? `<p style="text-align:center;font-size:13px;margin-top:-15px;ma
                 }
             }
         }
+
+        // ── Crop Khasra Modal: fasal-wise khasra list ──────────────────────
+        let _cropModalRecs = [];
+        let _cropModalTitle = '';
+
+        function openCropKhasraModal(gramEnc, cropEnc, season) {
+            const gram = decodeURIComponent(gramEnc);
+            const cropName = decodeURIComponent(cropEnc);
+
+            // records filter
+            const recs = records.filter(r => {
+                if (r.v !== gram) return false;
+                if (season === 'kharif') return (r.finalKharifCrop || '').trim() === cropName;
+                if (season === 'rabi')  return (r.finalRabiCrop  || '').trim() === cropName;
+                return false;
+            }).sort((a, b) => (parseInt(a.kn)||0) - (parseInt(b.kn)||0));
+
+            _cropModalRecs  = recs;
+            _cropModalTitle = `${gram} — ${season === 'kharif' ? '🌾 खरीफ' : '🚜 रबी'}: ${cropName}`;
+
+            const totalArea = recs.reduce((s,r) => s + parseFloat(season==='kharif'?r.kharifCropArea:r.rabiCropArea||0), 0).toFixed(3);
+
+            const rowsHtml = recs.map((r, i) => {
+                const area   = season === 'kharif' ? r.kharifCropArea : r.rabiCropArea;
+                const crop   = season === 'kharif' ? r.finalKharifCrop : r.finalRabiCrop;
+                const flag   = r.kharifSource === 'DCS'
+                    ? '<span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:800;">DCS</span>'
+                    : r.kharifSource === 'Bhuiyya'
+                    ? '<span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:800;">Bhuiyya</span>'
+                    : '<span style="color:#94a3b8;">—</span>';
+                const ownerShort = (r.owner||'').replace(/\([\d]+\)/g,'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().split('नाम')[0].trim() || r.owner;
+                return `<tr style="background:${i%2===0?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:9px 8px;font-weight:800;color:#64748b;text-align:center;">${i+1}</td>
+                    <td style="padding:9px 8px;font-weight:800;color:#1e40af;">${r.kn}</td>
+                    <td style="padding:9px 8px;color:#475569;">${r.bn||'—'}</td>
+                    <td style="padding:9px 8px;font-weight:700;color:#1e293b;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${(r.owner||'').replace(/"/g,'&quot;')}">${ownerShort||r.owner}</td>
+                    <td style="padding:9px 8px;color:#065f46;font-weight:700;">${crop||'—'}</td>
+                    <td style="padding:9px 8px;text-align:right;font-weight:800;color:#1a1a6e;">${area}</td>
+                    <td style="padding:9px 8px;text-align:center;">${flag}</td>
+                </tr>`;
+            }).join('');
+
+            // Modal HTML
+            let modal = document.getElementById('cropKhasraModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'cropKhasraModal';
+                modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);overflow-y:auto;';
+                modal.onclick = (e) => { if (e.target === modal) closeCropKhasraModal(); };
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+
+            modal.innerHTML = `
+            <div style="background:#fff;border-radius:24px;padding:28px 28px 24px;width:100%;max-width:920px;box-shadow:0 20px 60px rgba(0,0,0,0.3);animation:slideUp 0.3s ease both;margin:auto;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <div style="font-size:20px;font-weight:900;color:#1a1a6e;font-family:'Noto Sans Devanagari',sans-serif;">${_cropModalTitle}</div>
+                        <div style="font-size:13px;color:#64748b;font-weight:600;margin-top:4px;">कुल <b>${recs.length}</b> खसरे | कुल रकबा: <b>${totalArea} हे.</b></div>
+                    </div>
+                    <button onclick="closeCropKhasraModal()" style="background:#f1f5f9;border:none;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+                </div>
+
+                <!-- Export Buttons -->
+                <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+                    <button onclick="exportCropKhasraExcel()" style="flex:1;min-width:140px;padding:10px 16px;background:#059669;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:'Noto Sans Devanagari',sans-serif;">
+                        📊 Excel डाउनलोड
+                    </button>
+                    <button onclick="printCropKhasraPDF()" style="flex:1;min-width:140px;padding:10px 16px;background:#1a1a6e;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:'Noto Sans Devanagari',sans-serif;">
+                        📄 PDF प्रिंट
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div style="overflow-x:auto;border-radius:14px;border:1px solid #e2e8f0;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="background:#1a1a6e;color:#fff;">
+                                <th style="padding:11px 8px;text-align:center;font-weight:800;">क्र.</th>
+                                <th style="padding:11px 8px;font-weight:800;">खसरा नं.</th>
+                                <th style="padding:11px 8px;font-weight:800;">बसरा नं.</th>
+                                <th style="padding:11px 8px;font-weight:800;">भूमिस्वामी</th>
+                                <th style="padding:11px 8px;font-weight:800;">फसल</th>
+                                <th style="padding:11px 8px;font-weight:800;text-align:right;">रकबा (हे.)</th>
+                                <th style="padding:11px 8px;font-weight:800;text-align:center;">Flag</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">कोई रिकॉर्ड नहीं</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function closeCropKhasraModal() {
+            const m = document.getElementById('cropKhasraModal');
+            if (m) m.style.display = 'none';
+        }
+
+        function exportCropKhasraExcel() {
+            if (!_cropModalRecs.length) return;
+            let csv = '\uFEFF';
+            csv += `"${_cropModalTitle}"\n`;
+            csv += '"क्र.","खसरा नं.","बसरा नं.","भूमिस्वामी","फसल का नाम","रकबा (हे.)","Flag"\n';
+            _cropModalRecs.forEach((r, i) => {
+                const isTitleKharif = _cropModalTitle.includes('खरीफ');
+                const area  = isTitleKharif ? r.kharifCropArea : r.rabiCropArea;
+                const crop  = isTitleKharif ? r.finalKharifCrop : r.finalRabiCrop;
+                const flag  = r.kharifSource === 'DCS' ? 'DCS' : r.kharifSource === 'Bhuiyya' ? 'Bhuiyya' : '—';
+                const owner = (r.owner||'').replace(/"/g,'""').replace(/[\r\n]+/g,' ');
+                csv += `${i+1},"${r.kn}","${r.bn||'—'}","${owner}","${crop||'—'}","${area}","${flag}"\n`;
+            });
+            const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url;
+            a.download = `Fasal_Khasra_${_cropModalTitle.replace(/[^\u0900-\u097F\w]+/g,'_')}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function printCropKhasraPDF() {
+            if (!_cropModalRecs.length) return;
+            const isTitleKharif = _cropModalTitle.includes('खरीफ');
+            const totalArea = _cropModalRecs.reduce((s,r) => s + parseFloat(isTitleKharif?r.kharifCropArea:r.rabiCropArea||0), 0).toFixed(3);
+
+            const rowsHtml = _cropModalRecs.map((r,i) => {
+                const area = isTitleKharif ? r.kharifCropArea : r.rabiCropArea;
+                const crop = isTitleKharif ? r.finalKharifCrop : r.finalRabiCrop;
+                const flag = r.kharifSource === 'DCS' ? 'DCS' : r.kharifSource === 'Bhuiyya' ? 'Bhuiyya' : '—';
+                const ownerStr = (r.owner||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim();
+                return `<tr style="background:${i%2===0?'#f8fafc':'#fff'};">
+                    <td style="text-align:center;">${i+1}</td>
+                    <td style="font-weight:800;">${r.kn}</td>
+                    <td>${r.bn||'—'}</td>
+                    <td>${ownerStr}</td>
+                    <td style="color:#065f46;font-weight:700;">${crop||'—'}</td>
+                    <td style="text-align:right;font-weight:800;">${area}</td>
+                    <td style="text-align:center;font-weight:700;">${flag}</td>
+                </tr>`;
+            }).join('');
+
+            const pw = window.open('','_blank');
+            if (!pw) { toast('Popup blocked! Allow popups and try again.','error'); return; }
+            pw.document.write(`<!DOCTYPE html><html lang="hi"><head>
+<meta charset="UTF-8">
+<title>${_cropModalTitle}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Noto Sans Devanagari',sans-serif; padding:24px; color:#1a1a1a; }
+  h1   { font-size:18px; font-weight:900; color:#1a1a6e; text-align:center; margin-bottom:4px; }
+  .sub { text-align:center; font-size:12px; color:#64748b; margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:#1a1a6e; color:#fff; padding:9px 7px; text-align:left; font-weight:800; }
+  td { padding:8px 7px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  tbody tr:nth-child(even) { background:#f8fafc; }
+  @media print { body { padding:12px; } }
+</style></head><body>
+<h1>${_cropModalTitle}</h1>
+<p class="sub">कुल ${_cropModalRecs.length} खसरे | कुल रकबा: ${totalArea} हे. | दिनांक: ${new Date().toLocaleDateString('hi-IN')}</p>
+<table>
+  <thead><tr><th>#</th><th>खसरा नं.</th><th>बसरा नं.</th><th>भूमिस्वामी</th><th>फसल का नाम</th><th>रकबा (हे.)</th><th>Flag</th></tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+            pw.document.close();
+        }
+
+
 
         // ── Card Function: Export Crop Excel ──
         function exportCropDetailsExcel() {
