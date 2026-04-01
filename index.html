@@ -1155,45 +1155,60 @@
             const badge = document.getElementById('recordCountBadge');
             badge.textContent = '⏳ डेटा लोड हो रहा है...';
 
-            try {
-                // सभी गाँवों का डेटा पैरेलल में फेच करेंगे
-                const villagePromises = Object.entries(VILLAGE_TABS).map(async ([vName, tabs]) => {
-                    const fetchTab = async (gid) => {
-                        const csvText = await fetchCSV(gid);
-                        return parseCSVToRows(csvText);
-                    };
-
-                    // एक गाँव के सभी tabs पैरेलल में
-                    const [kRows, dcsK, dcsR, bhuiyya, charai, nistar] = await Promise.all([
-                        fetchTab(tabs.khasra),
-                        fetchTab(tabs.dcsKharif),
-                        fetchTab(tabs.dcsRabi),
-                        fetchTab(tabs.bhuiyya),
-                        fetchTab(tabs.charaiCeiling),
-                        fetchTab(tabs.nistarPatrak)
-                    ]);
-
-                    // मर्ज लॉजिक चलायें
-                    return mergeVillageData(vName, tabs.halka, kRows, dcsK, dcsR, bhuiyya, charai, nistar);
-                });
-
-                const allVillageResults = await Promise.all(villagePromises);
-                
-                // सारे गाँवों के रिकॉर्ड्स एक एरे में कम्बाइन करें
-                records = allVillageResults.flat();
-                cachedRecords = records;
-
+            function onSuccess() {
                 fillVillages();
                 badge.textContent = `✅ ${records.length} रिकॉर्ड लोड`;
                 toast(`${records.length} रिकॉर्ड सफलतापूर्वक लोड हुए`, 'success');
-                
-                // डिफ़ॉल्ट रूप से सांख्यिकी टैब दिखाएं
                 switchTab('statistics');
+            }
+
+            function onError(msg) {
+                console.error('onError called:', msg);
+                badge.innerHTML = `❌ लोड विफल &nbsp;<button onclick="loadData()" style="background:#1a1a6e;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;">🔄 पुनः प्रयास</button>
+                <input type="file" id="manualCSV" style="display:none" onchange="handleManualUpload(event)">
+                <button onclick="document.getElementById('manualCSV').click()" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;margin-left:5px;">📁 फाइल अपलोड</button>`;
+                toast(msg || 'नेटवर्क त्रुटि — कृपया इंटरनेट जांचें', 'error');
+            }
+
+            // Step 1: Try parallel fetching of local/proxied CSV
+            try {
+                const PROXY1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL);
+                const PROXY2 = 'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL);
+
+                const response = await Promise.any([
+                    fetch(PROXY1),
+                    fetch(PROXY2)
+                ]);
+
+                if (!response.ok) throw new Error('Proxy failed');
+                const csvText = await response.text();
+                const result = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' });
+                if (processCSVResults(result)) {
+                    cachedRecords = records;
+                    onSuccess();
+                } else {
+                    throw new Error('Data processing failed');
+                }
 
             } catch (e) {
-                console.error('Data loading error:', e);
-                badge.innerHTML = `❌ लोड विफल &nbsp;<button onclick="loadData()" style="background:#1a1a6e;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;">🔄 पुनः प्रयास</button>`;
-                toast('डेटा लोड करने में समस्या आई। कृपया इंटरनेट जांचें या पुनः प्रयास करें।', 'error');
+                console.warn('Proxy fetch failed, trying direct PapaParse...', e);
+                // Fallback to direct download
+                Papa.parse(SHEET_URL, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: 'greedy',
+                    complete: function (results) {
+                        if (processCSVResults(results)) {
+                            cachedRecords = records;
+                            onSuccess();
+                        } else {
+                            onError('डेटा पार्स विफल (Empty results)');
+                        }
+                    },
+                    error: function (err) {
+                        onError('नेटवर्क त्रुटि — कृपया इंटरनेट जांचें');
+                    }
+                });
             }
         }
 
