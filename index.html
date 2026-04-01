@@ -611,6 +611,45 @@
             align-items: center;
             gap: 8px;
         }
+        /* Khasra Suggestion Styles */
+        #khasraSuggest {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+        #khasraSuggest::-webkit-scrollbar {
+            width: 8px;
+        }
+        #khasraSuggest::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 0 12px 12px 0;
+        }
+        #khasraSuggest::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border: 2px solid #f1f5f9;
+            border-radius: 10px;
+        }
+        #khasraSuggest::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .khasra-suggest-item {
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--royal);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Noto Sans Devanagari', sans-serif;
+            transition: all 0.15s;
+        }
+        .khasra-suggest-item:last-child {
+            border-bottom: none;
+        }
+        .khasra-suggest-item:hover, .khasra-suggest-item.active {
+            background: #f0f4ff;
+            color: var(--royal-mid);
+            padding-left: 20px;
+        }
     </style>
     <!-- PapaParse for ultra-fast CSV streaming -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -702,7 +741,10 @@
                         <input type="text" id="khasraVal" class="form-input" placeholder="उदाहरण: 123 या 45/1" autocomplete="off">
                         <div id="khasraSuggest" style="
                             display:none;
-                            position:fixed;
+                            position:absolute;
+                            top:100%;
+                            left:0;
+                            width:100%;
                             z-index:9999;
                             background:#fff;
                             border:1px solid var(--border);
@@ -710,6 +752,7 @@
                             box-shadow:0 8px 32px rgba(26,26,110,0.18);
                             max-height:240px;
                             overflow-y:auto;
+                            margin-top:4px;
                             padding-bottom:4px;
                         "></div>
                     </div>
@@ -1127,59 +1170,47 @@
                 toast(msg || 'नेटवर्क त्रुटि — कृपया इंटरनेट जांचें', 'error');
             }
 
+            // Step 1: Try parallel fetching of local/proxied CSV
             try {
-                badge.textContent = '⏳ सभी tabs लोड हो रहे हैं (24 tabs)...';
+                const PROXY1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL);
+                const PROXY2 = 'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL);
 
-                // सभी गाँवों के लिए parallel fetch
-                const villageNames = Object.keys(VILLAGE_TABS);
-                const villageResults = await Promise.all(
-                    villageNames.map(async (vName) => {
-                        const cfg = VILLAGE_TABS[vName];
-                        const [khasraCSV, dcsKCSV, dcsRCSV, bhuiyyaCSV, charaiCSV, nistarCSV] = await Promise.all([
-                            fetchCSV(cfg.khasra),
-                            fetchCSV(cfg.dcsKharif),
-                            fetchCSV(cfg.dcsRabi),
-                            fetchCSV(cfg.bhuiyya),
-                            fetchCSV(cfg.charaiCeiling),
-                            fetchCSV(cfg.nistarPatrak),
-                        ]);
+                const response = await Promise.any([
+                    fetch(PROXY1),
+                    fetch(PROXY2)
+                ]);
 
-                        // खसरा लिस्ट: row 1 = title, row 2 = header (index 1)
-                        const khasraRows  = parseCSVToRows(khasraCSV,  1);
-                        // DCS tabs: row 1 = header directly (index 0)
-                        const dcsKRows    = parseCSVToRows(dcsKCSV,    0);
-                        const dcsRRows    = parseCSVToRows(dcsRCSV,    0);
-                        // भुइया: row 1-2 = title/date, row 3 = header (index 2)
-                        const bhuiyyaRows = parseCSVToRows(bhuiyyaCSV, 2);
-                        // चराई/सीलिंग tab: row 1 = title, row 2 = header (index 1)
-                        const charaiRows  = parseCSVToRows(charaiCSV,  1);
-                        // निस्तार पत्रक tab: row 1 = title, row 2 = header (index 1)
-                        const nistarRows  = parseCSVToRows(nistarCSV,  1);
+                if (!response.ok) throw new Error('Proxy failed');
+                const csvText = await response.text();
+                const result = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' });
+                if (processCSVResults(result)) {
+                    cachedRecords = records;
+                    onSuccess();
+                } else {
+                    throw new Error('Data processing failed');
+                }
 
-                        return mergeVillageData(vName, cfg.halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows, charaiRows, nistarRows);
-                    })
-                );
-
-                // सभी गाँवों के records एक array में
-                records = villageResults.flat();
-
-                if (records.length === 0) throw new Error('No records merged');
-
-                cachedRecords = records;
-                onSuccess();
-
-            } catch (err) {
-                console.error('Multi-tab load failed:', err);
-                onError('डेटा लोड विफल — कृपया sheet publish करें या इंटरनेट जांचें');
+            } catch (e) {
+                console.warn('Proxy fetch failed, trying direct PapaParse...', e);
+                // Fallback to direct download
+                Papa.parse(SHEET_URL, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: 'greedy',
+                    complete: function (results) {
+                        if (processCSVResults(results)) {
+                            cachedRecords = records;
+                            onSuccess();
+                        } else {
+                            onError('डेटा पार्स विफल (Empty results)');
+                        }
+                    },
+                    error: function (err) {
+                        onError('नेटवर्क त्रुटि — कृपया इंटरनेट जांचें');
+                    }
+                });
             }
         }
-
-        function handleManualUpload(e) {
-            // नई multi-tab sheet के साथ manual upload काम नहीं करता
-            // (डेटा 16 tabs से merge होता है, single CSV से नहीं)
-            toast('नई sheet के साथ manual upload उपलब्ध नहीं — sheet को "Publish to web" करें', 'error');
-        }
-
 
         function fillVillages() {
             const desiredOrder = ['छेरकापुर (हल्का 28)', 'छड़िया (हल्का 28)', 'तिल्दा (हल्का 43)', 'गबौद (हल्का 43)'];
@@ -1239,13 +1270,6 @@
             const inp = document.getElementById('khasraVal');
             const box = document.getElementById('khasraSuggest');
 
-            function positionBox() {
-                const rect = inp.getBoundingClientRect();
-                box.style.top    = (rect.bottom + 4) + 'px';
-                box.style.left   = rect.left + 'px';
-                box.style.width  = rect.width + 'px';
-            }
-
             function showSuggestions(q) {
                 const list = window._khasraList || [];
                 if (!q || !list.length) { box.style.display = 'none'; return; }
@@ -1258,20 +1282,11 @@
 
                 if (!matched.length) { box.style.display = 'none'; return; }
 
-                box.innerHTML = matched.map((kn, i) =>
-                    `<div data-kn="${kn}" style="
-                        padding:10px 16px;
-                        font-size:14px;
-                        font-weight:700;
-                        color:var(--royal);
-                        cursor:pointer;
-                        border-bottom:${i < matched.length - 1 ? '1px solid var(--border)' : 'none'};
-                        font-family:'Noto Sans Devanagari',sans-serif;
-                        transition:background 0.15s;
-                    " onmouseenter="this.style.background='#f0f4ff'" onmouseleave="this.style.background=''">${kn}</div>`
+                box.innerHTML = matched.map(kn =>
+                    `<div class="khasra-suggest-item" data-kn="${kn}">${kn}</div>`
                 ).join('');
-                positionBox();
                 box.style.display = 'block';
+                box.scrollTop = 0;
             }
 
             inp.addEventListener('input', function () {
@@ -1280,6 +1295,15 @@
 
             inp.addEventListener('focus', function () {
                 if (this.value.trim()) showSuggestions(this.value.trim());
+            });
+
+            // Mouse interaction using event delegation
+            box.addEventListener('mouseover', function (e) {
+                const item = e.target.closest('.khasra-suggest-item');
+                if (item) {
+                    box.querySelectorAll('.khasra-suggest-item').forEach(c => c.classList.remove('active'));
+                    item.classList.add('active');
+                }
             });
 
             box.addEventListener('mousedown', function (e) {
@@ -1307,32 +1331,28 @@
                 this.scrollTop += e.deltaY;
             }, { passive: false });
 
-            // ── Reposition on resize ──
-            window.addEventListener('resize', function () {
-                if (box.style.display !== 'none') positionBox();
-            });
-
+            // ── Keyboard Navigation ──
             inp.addEventListener('keydown', function (e) {
-                if (!box.style.display || box.style.display === 'none') return;
-                const items = box.querySelectorAll('[data-kn]');
-                const active = box.querySelector('[data-kn][style*="background:#f0f4ff"]') ||
-                               box.querySelector('[data-kn].ksg-active');
-                let idx = [...items].indexOf(active);
+                if (box.style.display === 'none') return;
+                const items = box.querySelectorAll('.khasra-suggest-item');
+                const active = box.querySelector('.khasra-suggest-item.active');
+                let idx = Array.from(items).indexOf(active);
 
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    if (active) active.style.background = '';
-                    const next = items[Math.min(idx + 1, items.length - 1)];
-                    next.style.background = '#f0f4ff';
+                    if (active) active.classList.remove('active');
+                    const next = items[idx + 1] || items[0];
+                    next.classList.add('active');
                     next.scrollIntoView({ block: 'nearest' });
                 } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
-                    if (active) active.style.background = '';
-                    const prev = items[Math.max(idx - 1, 0)];
-                    prev.style.background = '#f0f4ff';
+                    if (active) active.classList.remove('active');
+                    const prev = items[idx - 1] || items[items.length - 1];
+                    prev.classList.add('active');
                     prev.scrollIntoView({ block: 'nearest' });
                 } else if (e.key === 'Enter') {
                     if (active) {
+                        e.preventDefault();
                         inp.value = active.dataset.kn;
                         box.style.display = 'none';
                     }
@@ -1341,9 +1361,6 @@
                 }
             });
         })();
-
-
-        // ── Tab Switch ────────────────────────────────
         function switchTab(tab) {
             currentTab = tab;
             const isSearch = ['khasra', 'basra', 'nam'].includes(tab);
