@@ -2,2098 +2,1030 @@
 <html lang="hi">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ग्राम खसरा सर्च</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link
-    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.min.js"></script>
-  <style>
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --bg: hsl(224, 71%, 4%);
-      --fg: hsl(213, 31%, 91%);
-      --card: hsl(224, 60%, 7%);
-      --primary: hsl(230, 70%, 60%);
-      --primary-h: 230;
-      --muted: hsl(220, 45%, 12%);
-      --muted-fg: hsl(215, 20%, 55%);
-      --border: hsl(220, 40%, 18%);
-      --accent: hsl(262, 60%, 55%);
-      --success: hsl(142, 70%, 40%);
-      --warning: hsl(38, 85%, 50%);
-      --info: hsl(200, 75%, 50%);
-      --gradient-primary: linear-gradient(135deg, hsl(230, 70%, 55%) 0%, hsl(262, 60%, 50%) 100%);
-      --glass-bg: hsla(224, 60%, 10%, 0.7);
-      --glass-border: hsla(213, 31%, 91%, 0.08);
-      --glass-shadow: 0 8px 32px hsla(224, 71%, 4%, 0.6);
-      --shadow-glow: 0 0 40px hsla(230, 70%, 60%, 0.25);
-      --shadow-card: 0 4px 24px hsla(224, 71%, 4%, 0.5);
-    }
-
-    body {
-      font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
-      background: linear-gradient(135deg, hsl(224, 71%, 4%) 0%, hsl(240, 60%, 8%) 50%, hsl(262, 50%, 10%) 100%);
-      min-height: 100vh;
-      color: var(--fg);
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--muted);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: hsla(230, 70%, 60%, 0.5);
-      border-radius: 3px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--primary);
-    }
-
-    /* Utilities */
-    .glass-card {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--glass-shadow);
-      backdrop-filter: blur(20px);
-    }
-
-    .gradient-text {
-      background: var(--gradient-primary);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .btn-primary {
-      background: var(--gradient-primary);
-      box-shadow: var(--shadow-glow);
-      color: white;
-      font-weight: 600;
-      border-radius: 12px;
-      padding: 12px 24px;
-      border: none;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-family: inherit;
-      font-size: 14px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 60px hsla(230, 70%, 60%, 0.4);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .stat-card {
-      background: linear-gradient(135deg, hsl(224, 60%, 9%) 0%, hsl(230, 55%, 12%) 100%);
-      border: 1px solid var(--glass-border);
-      box-shadow: var(--shadow-card);
-      backdrop-filter: blur(12px);
-      border-radius: 16px;
-      padding: 24px;
-      transition: all 0.3s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-glow);
-      border-color: hsla(230, 70%, 60%, 0.3);
-    }
-
-    .badge-success {
-      background: hsla(142, 70%, 40%, 0.2);
-      color: hsl(142, 70%, 65%);
-      border: 1px solid hsla(142, 70%, 40%, 0.3);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .badge-warning {
-      background: hsla(38, 85%, 50%, 0.2);
-      color: hsl(38, 85%, 70%);
-      border: 1px solid hsla(38, 85%, 50%, 0.3);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .badge-error {
-      background: hsla(0, 72%, 51%, 0.2);
-      color: hsl(0, 72%, 75%);
-      border: 1px solid hsla(0, 72%, 51%, 0.3);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .badge-info {
-      background: hsla(200, 75%, 50%, 0.2);
-      color: hsl(200, 75%, 75%);
-      border: 1px solid hsla(200, 75%, 50%, 0.3);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .badge-purple {
-      background: hsla(280, 60%, 50%, 0.2);
-      color: hsl(280, 60%, 75%);
-      border: 1px solid hsla(280, 60%, 50%, 0.3);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .input-glass {
-      background: hsla(220, 40%, 10%, 0.8);
-      border: 1px solid var(--glass-border);
-      color: var(--fg);
-      border-radius: 12px;
-      padding: 12px 16px;
-      width: 100%;
-      transition: all 0.2s;
-      outline: none;
-      font-family: inherit;
-      font-size: 14px;
-    }
-
-    .input-glass:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px hsla(230, 70%, 60%, 0.15);
-    }
-
-    /* Header */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      background: hsla(224, 65%, 5%, 0.85);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(20px);
-    }
-
-    .header-inner {
-      max-width: 1152px;
-      margin: 0 auto;
-      padding: 0 16px;
-    }
-
-    .header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 64px;
-    }
-
-    .logo-box {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      background: var(--gradient-primary);
-      box-shadow: var(--shadow-glow);
-      flex-shrink: 0;
-    }
-
-    .logo-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--fg);
-      line-height: 1.2;
-    }
-
-    .logo-sub {
-      font-size: 13px;
-      color: var(--muted-fg);
-      font-weight: 600;
-      font-family: serif;
-      text-align: center;
-    }
-
-    nav.desktop {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .nav-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 12px;
-      font-weight: 500;
-      font-size: 14px;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.2s;
-      color: var(--muted-fg);
-      background: transparent;
-    }
-
-    .nav-btn:hover:not(.active) {
-      background: hsla(220, 50%, 15%, 0.6);
-      color: var(--fg);
-    }
-
-    .nav-btn.active {
-      background: var(--gradient-primary);
-      box-shadow: var(--shadow-glow);
-      color: white;
-    }
-
-    .menu-btn {
-      display: none;
-      padding: 8px;
-      border-radius: 12px;
-      border: none;
-      background: transparent;
-      color: var(--fg);
-      cursor: pointer;
-      font-size: 20px;
-    }
-
-    /* Mobile nav */
-    .mobile-nav {
-      display: none;
-      flex-direction: column;
-      gap: 4px;
-      padding: 12px;
-      background: hsl(224, 65%, 5%);
-      border-top: 1px solid var(--border);
-    }
-
-    .mobile-nav .nav-btn {
-      width: 100%;
-      text-align: left;
-      justify-content: flex-start;
-    }
-
-    /* Bottom nav */
-    .bottom-nav {
-      display: none;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 40;
-      background: hsla(224, 65%, 5%, 0.95);
-      border-top: 1px solid var(--border);
-      backdrop-filter: blur(20px);
-    }
-
-    .bottom-nav-inner {
-      display: flex;
-    }
-
-    .bottom-nav-btn {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 12px 4px;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.2s;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--muted-fg);
-    }
-
-    .bottom-nav-btn.active {
-      color: var(--primary);
-    }
-
-    main {
-      padding-bottom: 32px;
-    }
-
-    /* Pages */
-    .page {
-      display: none;
-      max-width: 1152px;
-      margin: 0 auto;
-      padding: 32px 16px;
-    }
-
-    .page.active {
-      display: block;
-    }
-
-    .page.search-page {
-      max-width: 672px;
-    }
-
-    /* Fade-in animation */
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .fade-up {
-      animation: fadeUp 0.4s ease forwards;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-
-      to {
-        opacity: 1;
-      }
-    }
-
-    /* Dashboard */
-    .hero-card {
-      border-radius: 24px;
-      padding: 32px;
-      margin-bottom: 32px;
-      position: relative;
-      overflow: hidden;
-      background: linear-gradient(135deg, hsl(230, 70%, 55%) 0%, hsl(262, 60%, 50%) 100%);
-      box-shadow: 0 0 60px hsla(230, 70%, 60%, 0.35);
-    }
-
-    .hero-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      opacity: 0.1;
-      background: radial-gradient(circle at 80% 20%, white 0%, transparent 60%);
-    }
-
-    .hero-card-inner {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .hero-count {
-      font-size: 48px;
-      font-weight: 700;
-      color: white;
-      line-height: 1;
-    }
-
-    .hero-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-    }
-
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .grid-2-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-
-    /* Counter animation */
-    @keyframes countUp {
-      from {
-        opacity: 0;
-      }
-
-      to {
-        opacity: 1;
-      }
-    }
-
-    /* Charts */
-    .chart-container {
-      width: 100%;
-      height: 260px;
-    }
-
-    /* Table */
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    thead tr {
-      background: hsla(220, 40%, 10%, 0.8);
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      text-align: left;
-      padding: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-      color: var(--muted-fg);
-      transition: opacity 0.2s;
-    }
-
-    th:hover {
-      opacity: 0.8;
-    }
-
-    th.sorted {
-      color: var(--primary);
-    }
-
-    td {
-      padding: 12px 16px;
-      white-space: nowrap;
-    }
-
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    tbody tr:last-child {
-      border-bottom: none;
-    }
-
-    tbody tr:hover {
-      background: hsla(220, 40%, 15%, 0.4);
-    }
-
-    tbody tr.selected {
-      background: hsla(230, 70%, 60%, 0.08);
-    }
-
-    /* Pagination */
-    .pagination {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 24px;
-      border-top: 1px solid var(--border);
-    }
-
-    .page-btns {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .page-btn {
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 500;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
-      background: var(--muted);
-      color: var(--fg);
-      transition: all 0.2s;
-    }
-
-    .page-btn.active {
-      background: var(--gradient-primary);
-      color: white;
-      box-shadow: var(--shadow-glow);
-    }
-
-    .page-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    /* Shimmer */
-    @keyframes shimmer {
-      0% {
-        background-position: 200% 0;
-      }
-
-      100% {
-        background-position: -200% 0;
-      }
-    }
-
-    .shimmer {
-      background: linear-gradient(90deg, var(--muted) 25%, hsl(220, 45%, 18%) 50%, var(--muted) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      border-radius: 8px;
-    }
-
-    /* Search tabs */
-    .search-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 24px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 15px;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.3s;
-    }
-
-    .tab-btn.active {
-      background: var(--gradient-primary);
-      color: white;
-      box-shadow: var(--shadow-glow);
-    }
-
-    .tab-btn:not(.active) {
-      background: hsla(220, 40%, 14%, 0.8);
-      border: 1px solid var(--border);
-      color: var(--muted-fg);
-    }
-
-    /* Dropdown */
-    .dropdown-wrap {
-      position: relative;
-    }
-
-    .dropdown-menu {
-      position: absolute;
-      top: calc(100% + 8px);
-      left: 0;
-      right: 0;
-      z-index: 50;
-      border-radius: 16px;
-      overflow: hidden;
-      background: hsl(224, 60%, 8%);
-      border: 1px solid var(--border);
-      box-shadow: 0 16px 40px hsla(224, 71%, 4%, 0.8);
-      animation: fadeIn 0.15s ease;
-      max-height: 240px;
-      overflow-y: auto;
-    }
-
-    .dropdown-menu button {
-      display: block;
-      width: 100%;
-      padding: 12px 16px;
-      text-align: left;
-      font-size: 14px;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
-      background: transparent;
-      color: var(--fg);
-      transition: all 0.15s;
-    }
-
-    .dropdown-menu button:hover {
-      background: hsla(220, 40%, 15%, 0.8);
-    }
-
-    .dropdown-menu button.selected {
-      color: var(--primary);
-      background: hsla(230, 70%, 60%, 0.12);
-    }
-
-    /* Result card */
-    .result-field {
-      border-radius: 12px;
-      padding: 12px;
-      background: hsla(220, 40%, 10%, 0.6);
-      border: 1px solid var(--border);
-    }
-
-    .field-label {
-      font-size: 13px;
-      color: var(--muted-fg);
-      margin-bottom: 4px;
-    }
-
-    .field-value {
-      font-weight: 600;
-      font-size: 15px;
-      color: var(--fg);
-    }
-
-    .fields-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    /* Spinner */
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top: 2px solid white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    /* Stat table */
-    .stats-table th,
-    .stats-table td {
-      padding: 12px;
-    }
-
-    /* Recent searches */
-    .recent-tag {
-      font-size: 12px;
-      padding: 6px 12px;
-      border-radius: 8px;
-      background: hsla(230, 70%, 60%, 0.1);
-      border: 1px solid hsla(230, 70%, 60%, 0.2);
-      color: var(--primary);
-      cursor: pointer;
-      border: none;
-      font-family: inherit;
-      transition: background 0.15s;
-    }
-
-    .recent-tag:hover {
-      background: hsla(230, 70%, 60%, 0.18);
-    }
-
-    /* Expanded detail row */
-    .expanded-row td {
-      background: hsla(230, 70%, 60%, 0.05);
-    }
-
-    /* Khasra mini card */
-    .khasra-mini {
-      border-radius: 16px;
-      overflow: hidden;
-      cursor: pointer;
-    }
-
-    /* Charts placeholder */
-    .pie-chart-visual {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 260px;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .bar-chart-visual {
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      gap: 8px;
-      height: 200px;
-      padding: 16px 0;
-    }
-
-    .bar {
-      border-radius: 4px 4px 0 0;
-      flex: 1;
-      transition: height 0.5s ease;
-    }
-
-    /* Error banner */
-    .error-banner {
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: hsla(0, 72%, 50%, 0.1);
-      border: 1px solid hsla(0, 72%, 50%, 0.3);
-    }
-
-    /* Nistar card */
-    .nistar-card {
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 32px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      background: hsla(280, 60%, 50%, 0.12);
-      border: 1px solid hsla(280, 60%, 50%, 0.3);
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      nav.desktop {
-        display: none;
-      }
-
-      .menu-btn {
-        display: block;
-      }
-
-      .bottom-nav {
-        display: block;
-      }
-
-      main {
-        padding-bottom: 80px;
-      }
-
-      .grid-4 {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .grid-2-4 {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .grid-2 {
-        grid-template-columns: 1fr;
-      }
-
-      .fields-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-count {
-        font-size: 36px;
-      }
-
-      .logo-title-wrap {
-        display: none;
-      }
-
-      .logo-title-mobile {
-        display: block !important;
-        font-size: 14px;
-        font-weight: 700;
-      }
-    }
-
-    @media (min-width: 769px) {
-      .logo-title-mobile {
-        display: none;
-      }
-
-      .mobile-nav {
-        display: none !important;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>भूमि रिकॉर्ड खोज प्रणाली – हल्का 43 एवं 28</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700;900&family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --royal: #1a1a6e;
+            --royal-mid: #2d2db0;
+            --gold: #f0a500;
+            --gold-light: #ffd966;
+            --cream: #fffdf5;
+            --surface: #ffffff;
+            --text-main: #1a1a2e;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --green: #059669;
+            --orange: #d97706;
+            --shadow-card: 0 4px 24px rgba(26, 26, 110, 0.10);
+            --shadow-hover: 0 12px 40px rgba(26, 26, 110, 0.18);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans Devanagari', sans-serif;
+            background: var(--cream);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Background ── */
+        .bg-mesh {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 80% 50% at 10% 5%, rgba(45, 45, 176, 0.10) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 90% 90%, rgba(240, 165, 0, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+        }
+
+        /* ── Header ── */
+        .site-header {
+            background: linear-gradient(135deg, var(--royal) 0%, #2d2db0 60%, #1e3a8a 100%);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 32px rgba(26, 26, 110, 0.35);
+        }
+
+        .site-header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .header-gold-bar {
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent);
+        }
+
+        /* ── Emblem ── */
+        .emblem {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, var(--gold) 0%, var(--gold-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            box-shadow: 0 0 0 4px rgba(240, 165, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
+        }
+
+        /* ── Tab Bar ── */
+        .tab-bar {
+            background: #fff;
+            border-radius: 16px;
+            padding: 6px;
+            display: inline-flex;
+            gap: 6px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--border);
+        }
+
+        .tab-btn {
+            padding: 10px 28px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.25s;
+            outline: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--royal), var(--royal-mid));
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(26, 26, 110, 0.30);
+        }
+
+        .tab-btn:not(.active) {
+            background: transparent;
+            color: var(--text-muted);
+        }
+
+        .tab-btn:not(.active):hover {
+            background: #f1f5f9;
+            color: var(--royal);
+        }
+
+        /* ── Search Card ── */
+        .search-card {
+            background: #fff;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-card);
+            padding: 36px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--royal), var(--royal-mid), var(--gold));
+        }
+
+        /* ── Form Controls ── */
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 8px;
+        }
+
+        .form-select,
+        .form-input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-main);
+            background: #f8fafc;
+            outline: none;
+            transition: all 0.2s;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .form-select:focus,
+        .form-input:focus {
+            border-color: var(--royal-mid);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(45, 45, 176, 0.10);
+        }
+
+        .form-select[disabled] {
+            background: #f1f5f9;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .select-wrap {
+            position: relative;
+        }
+
+        .select-wrap::after {
+            content: '▾';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        /* ── Search Button ── */
+        .btn-search {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, var(--royal) 0%, var(--royal-mid) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 17px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 20px rgba(26, 26, 110, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(26, 26, 110, 0.45);
+        }
+
+        .btn-search:active {
+            transform: translateY(0);
+        }
+
+        /* ── Loading Spinner ── */
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 4px solid #e2e8f0;
+            border-top-color: var(--royal-mid);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Result Cards ── */
+        .result-card {
+            background: #fff;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            animation: slideUp 0.4s ease both;
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-header-khasra {
+            background: linear-gradient(135deg, #1a1a6e, #2563eb);
+        }
+
+        .card-header-basra {
+            background: linear-gradient(135deg, #065f46, #059669);
+        }
+
+        .card-kn {
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .stat-chip {
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 10px 14px;
+            text-align: center;
+        }
+
+        .stat-chip-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .stat-chip-val {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--text-main);
+            margin-top: 2px;
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .type-badge.sinchai {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .type-badge.asinchai {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .type-badge.danger {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .type-badge.nistar {
+            background: #ede9fe;
+            color: #6b21a8;
+        }
+
+        .type-badge.muted {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        /* ── PDF Button ── */
+        .btn-pdf {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 18px;
+            border-radius: 10px;
+            border: none;
+            background: rgba(255, 255, 255, 0.20);
+            color: #fff;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.30);
+            transition: all 0.2s;
+        }
+
+        .btn-pdf:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.04);
+        }
+
+        /* ── Portfolio Banner ── */
+        .portfolio-banner {
+            background: linear-gradient(135deg, var(--royal) 0%, #1e40af 60%, #1e3a8a 100%);
+            border-radius: 20px;
+            color: #fff;
+            padding: 28px;
+            box-shadow: 0 8px 32px rgba(26, 26, 110, 0.30);
+            position: relative;
+            overflow: hidden;
+            animation: slideUp 0.4s ease both;
+        }
+
+        .portfolio-banner::before {
+            content: '';
+            position: absolute;
+            top: -60%;
+            right: -10%;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+        }
+
+        .pf-stat {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            border-radius: 14px;
+            padding: 16px 20px;
+            text-align: center;
+        }
+
+        .pf-stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .pf-stat-val {
+            font-size: 30px;
+            font-weight: 900;
+            margin-top: 4px;
+        }
+
+        .btn-portfolio-pdf {
+            background: var(--gold);
+            color: var(--royal);
+            padding: 12px 22px;
+            border-radius: 12px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 16px rgba(240, 165, 0, 0.40);
+        }
+
+        .btn-portfolio-pdf:hover {
+            background: var(--gold-light);
+            transform: translateY(-2px);
+        }
+
+        /* ── Empty State ── */
+        .empty-box {
+            text-align: center;
+            padding: 64px 32px;
+            background: #fff;
+            border-radius: 20px;
+            border: 2px dashed var(--border);
+            animation: slideUp 0.4s ease both;
+        }
+
+        /* ── Animate in ── */
+        .fade-in {
+            animation: fadeIn 0.5s ease both;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .search-card {
+                padding: 24px 18px;
+            }
+
+            .pf-stat-val {
+                font-size: 24px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-  <!-- Global Loader -->
-  <div id="globalLoader"
-    style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:linear-gradient(135deg,hsl(224,71%,4%) 0%,hsl(240,60%,8%) 50%,hsl(262,50%,10%) 100%);">
-    <div
-      style="width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:linear-gradient(135deg,hsl(230,70%,55%),hsl(262,60%,50%));box-shadow:0 0 40px hsla(230,70%,60%,0.4);">
-      🌾</div>
-    <div
-      style="width:48px;height:48px;border:4px solid hsla(230,70%,60%,0.2);border-top:4px solid hsl(230,70%,60%);border-radius:50%;animation:spin 0.8s linear infinite;">
-    </div>
-    <div id="globalLoaderMsg"
-      style="color:hsl(215,20%,65%);font-size:15px;font-family:Noto Sans Devanagari,Inter,sans-serif;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;">
-      लोड हो रहा है...</div>
-  </div>
+    <div class="bg-mesh"></div>
 
-  <!-- App wrapper -->
-  <div id="app" style="display:none;">
-    <!-- HEADER -->
-    <header>
-      <div class="header-inner">
-        <div class="header-row">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div class="logo-box">🌾</div>
-            <div class="logo-title-wrap">
-              <div class="logo-title">भूमि रिकॉर्ड प्रबंधन प्रणाली</div>
-              <div class="logo-sub">हल्का 43 एवं 28</div>
+    <!-- ═══════════════════ HEADER ═══════════════════ -->
+    <div class="header-gold-bar"></div>
+    <header class="site-header">
+        <div style="max-width:900px; margin:0 auto; padding:28px 24px;">
+            <div style="display:flex; align-items:center; gap: 8px; flex-wrap:wrap;">
+                <div class="emblem">🌾</div>
+                <div style="flex:1; min-width:200px;">
+                    <div
+                        style="font-size:12px; color:rgba(255,255,255,0.55); font-weight:600; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:4px;">
+                        छत्तीसगढ़ शासन – राजस्व विभाग
+                    </div>
+                    <h1
+                        style="font-size:clamp(20px,4vw,30px); font-weight:900; color:#fff; line-height:1.1; font-family:'Noto Sans Devanagari',sans-serif;">
+                        भूमि रिकॉर्ड खोज प्रणाली
+                    </h1>
+                    <div style="margin-top:6px; font-size:14px; color:var(--gold-light); font-weight:600;">
+                        हल्का 43 एवं 28 — ग्रामवार खसरा / बसरा सूची
+                    </div>
+                </div>
+                <div
+                    style="text-align:right; display:flex; flex-direction:column; gap:4px; color:rgba(255,255,255,0.6); font-size:12px;">
+                    <span id="recordCountBadge"
+                        style="background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.20); border-radius:8px; padding:6px 14px; font-weight:700; color:#fff; font-size:13px;">
+                        डेटा लोड हो रहा है...
+                    </span>
+                </div>
             </div>
-            <div class="logo-title-mobile" style="display:none;">भूमि रिकॉर्ड</div>
-          </div>
-          <nav class="desktop" id="desktopNav">
-            <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
-              <span>⊞</span> डैशबोर्ड
-            </button>
-            <button class="nav-btn" data-tab="search" onclick="switchTab('search')">
-              <span>🔍</span> खोजें
-            </button>
-            <button class="nav-btn" data-tab="statistics" onclick="switchTab('statistics')">
-              <span>📊</span> सांख्यिकी
-            </button>
-            <button class="nav-btn" data-tab="table" onclick="switchTab('table')">
-              <span>☰</span> सभी रिकॉर्ड
-            </button>
-          </nav>
-          <button class="menu-btn" onclick="toggleMenu()">☰</button>
         </div>
-      </div>
-      <div class="mobile-nav" id="mobileNav">
-        <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard');closeMenu()">⊞ डैशबोर्ड
-          <span style="margin-left:auto;font-size:11px;opacity:0.6;">Dashboard</span></button>
-        <button class="nav-btn" data-tab="search" onclick="switchTab('search');closeMenu()">🔍 खोजें <span
-            style="margin-left:auto;font-size:11px;opacity:0.6;">Search</span></button>
-        <button class="nav-btn" data-tab="statistics" onclick="switchTab('statistics');closeMenu()">📊 सांख्यिकी <span
-            style="margin-left:auto;font-size:11px;opacity:0.6;">Statistics</span></button>
-        <button class="nav-btn" data-tab="table" onclick="switchTab('table');closeMenu()">☰ सभी रिकॉर्ड <span
-            style="margin-left:auto;font-size:11px;opacity:0.6;">Records</span></button>
-      </div>
     </header>
 
-    <!-- MAIN -->
-    <main>
+    <!-- ═══════════════════ MAIN ═══════════════════ -->
+    <main style="max-width:900px; margin:0 auto; padding:32px 16px 80px; position:relative; z-index:1;">
 
-      <!-- DASHBOARD PAGE -->
-      <div id="page-dashboard" class="page active fade-up">
-        <div
-          style="display:flex;align-items:center;justify-content:space-between;margin-bottom:40px;flex-wrap:wrap;gap:12px;">
-          <div>
-            <h2 class="gradient-text" style="font-size:28px;font-weight:700;margin-bottom:8px;">डैशबोर्ड</h2>
-            <p style="color:var(--muted-fg);font-size:15px;">हल्का 43 एवं 28 — समस्त रिकॉर्ड का सारांश</p>
-          </div>
-          <button onclick="refreshData()"
-            style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;font-size:14px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid var(--border);cursor:pointer;font-family:inherit;transition:all 0.2s;">
-            ↺ रिफ्रेश
-          </button>
-        </div>
-
-        <!-- Hero Card -->
-        <div class="hero-card">
-          <div class="hero-card-inner">
-            <div>
-              <p style="color:rgba(255,255,255,0.7);font-size:14px;font-weight:500;margin-bottom:4px;">कुल रिकॉर्ड</p>
-              <div class="hero-count" id="totalCounter">0</div>
-              <p style="color:rgba(255,255,255,0.6);font-size:14px;margin-top:8px;">हल्का 43 + हल्का 28 — 4 ग्राम</p>
-            </div>
-            <div class="hero-icon">🗄️</div>
-          </div>
-        </div>
-
-        <!-- Village Cards -->
-        <div class="grid-4" id="villageCards"></div>
-
-        <!-- Quick Stats -->
-        <div class="grid-2-4" id="quickStats"></div>
-      </div>
-
-      <!-- SEARCH PAGE -->
-      <div id="page-search" class="page search-page fade-up" style="display:none;">
-        <h2 class="gradient-text" style="font-size:28px;font-weight:700;margin-bottom:8px;">भूमि खोजें</h2>
-        <p style="color:var(--muted-fg);font-size:16px;margin-bottom:24px;">खसरा या बसरा नंबर से रिकॉर्ड खोजें</p>
-
-        <!-- Search Tabs -->
-        <div class="search-tabs">
-          <button class="tab-btn active" id="khasraTabBtn" onclick="switchSearchTab('khasra')">🔍 खसरा खोज</button>
-          <button class="tab-btn" id="basraTabBtn" onclick="switchSearchTab('basra')">👥 बसरा खोज</button>
-        </div>
-
-        <!-- Search Form -->
-        <div class="glass-card" style="border-radius:24px;padding:24px;margin-bottom:24px;">
-          <div style="display:flex;flex-direction:column;gap:16px;">
-
-            <!-- Village Dropdown -->
-            <div>
-              <label style="display:block;font-weight:500;margin-bottom:8px;font-size:15px;color:var(--muted-fg);">ग्राम
-                का नाम *</label>
-              <div class="dropdown-wrap">
-                <button onclick="toggleVillageDropdown()"
-                  style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;"
-                  class="input-glass" id="villageBtn">
-                  <span id="villageBtnText" style="color:var(--muted-fg);">ग्राम चुनें...</span>
-                  <span id="villageChevron" style="transition:transform 0.2s;">▼</span>
+        <!-- Tab Bar -->
+        <div style="display:flex; justify-content:center; margin-bottom:28px;" class="fade-in">
+            <div class="tab-bar">
+                <button class="tab-btn active" id="tab-khasra" onclick="switchTab('khasra')">
+                    📄 खसरा खोज
                 </button>
-                <div class="dropdown-menu" id="villageDropdown" style="display:none;"></div>
-              </div>
-            </div>
-
-            <!-- Khasra Input -->
-            <div id="khasraInputWrap">
-              <label style="display:block;font-size:14px;font-weight:500;margin-bottom:8px;color:var(--muted-fg);">खसरा
-                नंबर *</label>
-              <div style="position:relative;">
-                <input type="text" id="khasraInput" class="input-glass" placeholder="उदा: 123/1, 124/2..."
-                  style="padding-right:40px;" oninput="clearSearchResult()"
-                  onkeydown="if(event.key==='Enter')doSearch()">
-                <button onclick="document.getElementById('khasraInput').value=''"
-                  style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted-fg);cursor:pointer;font-size:16px;">×</button>
-              </div>
-            </div>
-
-            <!-- Basra Input -->
-            <div id="basraInputWrap" style="display:none;">
-              <label style="display:block;font-weight:500;margin-bottom:8px;font-size:15px;color:var(--muted-fg);">बसरा
-                नंबर *</label>
-              <div class="dropdown-wrap">
-                <button onclick="toggleBasraDropdown()"
-                  style="width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;"
-                  class="input-glass" id="basraBtn">
-                  <span id="basraBtnText" style="color:var(--muted-fg);">बसरा नंबर चुनें...</span>
-                  <span id="basraChevron" style="transition:transform 0.2s;">▼</span>
+                <button class="tab-btn" id="tab-basra" onclick="switchTab('basra')">
+                    👥 बसरा खोज
                 </button>
-                <div class="dropdown-menu" id="basraDropdown" style="display:none;"></div>
-              </div>
-              <p id="basraHint" style="font-size:12px;margin-top:6px;color:var(--muted-fg);">इस बसरे से जुड़े सभी खसरे
-                दिखेंगे</p>
             </div>
-
-            <!-- Error -->
-            <p id="searchError" style="color:hsl(0,72%,75%);font-size:14px;font-weight:500;display:none;"></p>
-
-            <!-- Search Button -->
-            <button class="btn-primary" onclick="doSearch()" id="searchBtn"
-              style="width:100%;justify-content:center;font-size:15px;">
-              <span>🔍</span> <span id="searchBtnText">खोजें</span>
-            </button>
-          </div>
         </div>
 
-        <!-- Recent Searches -->
-        <div id="recentSearchesWrap" style="margin-bottom:24px;display:none;">
-          <p
-            style="font-size:12px;font-weight:500;margin-bottom:12px;color:var(--muted-fg);display:flex;align-items:center;gap:8px;">
-            🕐 हाल की खोज</p>
-          <div id="recentSearchesList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        <!-- Search Card -->
+        <div class="search-card fade-in" style="max-width:640px; margin:0 auto 32px;">
+            <form id="searchForm" onsubmit="handleSearch(event)">
+                <div style="display:grid; gap:18px;">
+
+                    <!-- Village -->
+                    <div>
+                        <label class="form-label">🏘️ ग्राम का नाम</label>
+                        <div class="select-wrap">
+                            <select id="villageInput" class="form-select" required>
+                                <option value="" disabled selected>— ग्राम चुनें —</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Khasra Input -->
+                    <div id="khasraGroup">
+                        <label class="form-label">📄 खसरा नंबर</label>
+                        <input type="text" id="khasraVal" class="form-input" placeholder="उदाहरण: 123 या 45/1">
+                    </div>
+
+                    <!-- Basra Input -->
+                    <div id="basraGroup" style="display:none;">
+                        <label class="form-label">📋 बसरा नंबर</label>
+                        <div class="select-wrap">
+                            <select id="basraVal" class="form-select" disabled>
+                                <option value="" disabled selected>— पहले ग्राम चुनें —</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Button -->
+                    <button type="submit" class="btn-search" id="searchBtn" style="margin-top:4px;">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"
+                            viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.35-4.35" />
+                        </svg>
+                        <span id="btnLabel">खोजें</span>
+                    </button>
+
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading -->
+        <div id="loadingDiv" style="display:none; text-align:center; padding:48px 0;" class="fade-in">
+            <div class="spinner" style="margin:0 auto 16px;"></div>
+            <p style="color:var(--text-muted); font-weight:600;">खोज जारी है...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyDiv" style="display:none; max-width:640px; margin:0 auto;">
+            <div class="empty-box">
+                <div style="font-size:56px; margin-bottom:16px;">🔍</div>
+                <h3 style="font-size:20px; font-weight:800; color:var(--text-main); margin-bottom:8px;">कोई रिकॉर्ड नहीं
+                    मिला</h3>
+                <p style="color:var(--text-muted); font-size:14px;">कृपया ग्राम और नंबर की जांच करके दोबारा खोजें।</p>
+            </div>
         </div>
 
         <!-- Results -->
-        <div id="searchResults">
-          <!-- Initial state -->
-          <div id="initialState"
-            style="display:flex;flex-direction:column;align-items:center;padding:48px 0;gap:16px;text-align:center;">
-            <div
-              style="width:80px;height:80px;border-radius:24px;display:flex;align-items:center;justify-content:center;background:hsla(230,70%,60%,0.1);border:1px solid hsla(230,70%,60%,0.2);">
-              <span style="font-size:36px;">🔍</span>
-            </div>
-            <div>
-              <p style="font-size:15px;font-weight:600;margin-bottom:4px;color:var(--muted-fg);">🔍 ग्राम और खसरा नंबर
-                चुनकर खोजें</p>
-              <p style="font-size:14px;color:var(--muted-fg);">प्रत्येक ग्राम + खसरा संयोजन का एकल रिकॉर्ड दिखाया जाएगा
-              </p>
-            </div>
-          </div>
-          <div id="loadingState" style="display:none;flex-direction:column;align-items:center;padding:48px 0;gap:16px;">
-            <div class="shimmer" style="width:64px;height:64px;border-radius:16px;"></div>
-            <div class="shimmer" style="width:192px;height:16px;"></div>
-            <div class="shimmer" style="width:128px;height:12px;"></div>
-            <p style="font-size:14px;margin-top:8px;color:var(--muted-fg);">खोज रहे हैं...</p>
-          </div>
-          <div id="resultCard" style="display:none;"></div>
-        </div>
-      </div>
-
-      <!-- STATISTICS PAGE -->
-      <div id="page-statistics" class="page fade-up" style="display:none;max-width:1152px;">
-        <div
-          style="display:flex;align-items:center;justify-content:space-between;margin-bottom:40px;flex-wrap:wrap;gap:12px;">
-          <div>
-            <h2 class="gradient-text" style="font-size:24px;font-weight:700;margin-bottom:8px;">सांख्यिकी</h2>
-            <p style="font-size:14px;color:var(--muted-fg);">ग्रामवार भूमि वितरण का विश्लेषण</p>
-          </div>
-          <button onclick="refreshData()"
-            style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;font-size:14px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid var(--border);cursor:pointer;font-family:inherit;">↺
-            रिफ्रेश</button>
-        </div>
-
-        <!-- Nistar Card -->
-        <div class="nistar-card">
-          <div
-            style="width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;background:hsla(280,60%,50%,0.2);">
-            📜</div>
-          <div>
-            <p style="font-weight:500;font-size:18px;font-family:serif;color:var(--muted-fg);">निस्तार पत्रक विवरण दर्ज
-            </p>
-            <p style="font-size:24px;font-weight:700;color:hsl(280,60%,75%);" id="nistarCount">0</p>
-            <p style="font-size:12px;margin-top:2px;color:var(--muted-fg);" id="nistarTotal"></p>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <!-- Pie Chart -->
-          <div class="glass-card" style="border-radius:24px;padding:24px;">
-            <h3 style="font-weight:600;margin-bottom:16px;color:var(--fg);">📊 ग्रामवार रिकॉर्ड वितरण</h3>
-            <canvas id="pieChart" width="300" height="260" style="max-width:100%;"></canvas>
-            <div id="pieLegend" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;"></div>
-          </div>
-
-          <!-- Bar Chart -->
-          <div class="glass-card" style="border-radius:24px;padding:24px;">
-            <div
-              style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-              <h3 style="font-weight:600;color:var(--fg);">💧 सिंचित / असिंचित भूमि</h3>
-              <select id="villageFilter2" onchange="renderBarChart()"
-                style="font-size:12px;padding:6px 12px;border-radius:8px;background:var(--muted);border:1px solid var(--border);color:var(--fg);outline:none;font-family:inherit;">
-                <option value="सभी">सभी ग्राम</option>
-              </select>
-            </div>
-            <canvas id="barChart" width="300" height="260" style="max-width:100%;"></canvas>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;">
-              <span style="display:flex;align-items:center;gap:6px;"><span
-                  style="width:12px;height:12px;border-radius:2px;background:hsl(200,75%,50%);display:inline-block;"></span>सिंचित</span>
-              <span style="display:flex;align-items:center;gap:6px;"><span
-                  style="width:12px;height:12px;border-radius:2px;background:hsl(38,85%,55%);display:inline-block;"></span>असिंचित</span>
-              <span style="display:flex;align-items:center;gap:6px;"><span
-                  style="width:12px;height:12px;border-radius:2px;background:hsl(142,70%,45%);display:inline-block;"></span>चराई</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Stats Table -->
-        <div class="glass-card" style="border-radius:24px;padding:24px;">
-          <h3 style="font-weight:600;margin-bottom:16px;color:var(--fg);">📋 ग्रामवार विस्तृत सारांश</h3>
-          <div class="table-wrap">
-            <table class="stats-table">
-              <thead>
-                <tr style="border-bottom:1px solid var(--border);">
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">ग्राम</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">कुल</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">सिंचित</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">असिंचित</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">चराई</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">सीलिंग</th>
-                  <th style="cursor:default;color:var(--muted-fg);font-size:12px;">निस्तार</th>
-                </tr>
-              </thead>
-              <tbody id="statsTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- DATA TABLE PAGE -->
-      <div id="page-table" class="page fade-up" style="display:none;max-width:1152px;">
-        <div
-          style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:16px;">
-          <div>
-            <h2 class="gradient-text" style="font-size:24px;font-weight:700;margin-bottom:4px;">सभी रिकॉर्ड</h2>
-            <p style="font-size:14px;color:var(--muted-fg);" id="tableCount">0 रिकॉर्ड मिले</p>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button onclick="refreshData()"
-              style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;font-size:14px;font-weight:500;background:var(--muted);color:var(--fg);border:1px solid var(--border);cursor:pointer;font-family:inherit;">↺
-              रिफ्रेश</button>
-            <button onclick="exportCSV()" class="btn-primary" style="font-size:14px;">⬇ CSV Export</button>
-          </div>
-        </div>
-
-        <!-- Filters -->
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
-          <div style="position:relative;flex:1;min-width:200px;">
-            <span
-              style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted-fg);">🔍</span>
-            <input type="text" id="tableSearch" class="input-glass" style="padding-left:36px;"
-              placeholder="नाम, खसरा, बसरा खोजें..." oninput="filterTable()">
-          </div>
-          <select id="tableVillageFilter" onchange="filterTable()"
-            style="font-size:14px;padding:12px 16px;border-radius:12px;background:hsla(220,40%,10%,0.8);border:1px solid var(--glass-border);color:var(--fg);outline:none;font-family:inherit;min-width:160px;"></select>
-        </div>
-
-        <!-- Table -->
-        <div class="glass-card" style="border-radius:24px;overflow:hidden;">
-          <div class="table-wrap">
-            <table id="dataTable">
-              <thead>
-                <tr>
-                  <th onclick="sortTable('serialNumber')" data-col="serialNumber">क्र.</th>
-                  <th onclick="sortTable('village')" data-col="village">ग्राम</th>
-                  <th onclick="sortTable('khasraNumber')" data-col="khasraNumber">खसरा</th>
-                  <th onclick="sortTable('area')" data-col="area">क्षेत्रफल</th>
-                  <th onclick="sortTable('ownerName')" data-col="ownerName">भूमिस्वामी</th>
-                  <th onclick="sortTable('landType')" data-col="landType">प्रकार</th>
-                  <th style="cursor:default;">चराई / सीलिंग</th>
-                </tr>
-              </thead>
-              <tbody id="tableBody"></tbody>
-            </table>
-          </div>
-          <!-- Pagination -->
-          <div class="pagination" id="pagination" style="display:none;"></div>
-        </div>
-      </div>
+        <div id="resultsDiv"></div>
 
     </main>
 
-    <!-- Bottom Nav -->
-    <nav class="bottom-nav">
-      <div class="bottom-nav-inner">
-        <button class="bottom-nav-btn active" data-tab="dashboard"
-          onclick="switchTab('dashboard')">⊞<span>Dashboard</span></button>
-        <button class="bottom-nav-btn" data-tab="search" onclick="switchTab('search')">🔍<span>Search</span></button>
-        <button class="bottom-nav-btn" data-tab="statistics"
-          onclick="switchTab('statistics')">📊<span>Statistics</span></button>
-        <button class="bottom-nav-btn" data-tab="table" onclick="switchTab('table')">☰<span>Records</span></button>
-      </div>
-    </nav>
-
+    <!-- ═══════════════════ SCRIPT ═══════════════════ -->
     <script>
-      // ============================================================
-      // GOOGLE SHEETS CONFIG — Published CSV URL
-      // ============================================================
-      const SHEET_ID = '196QsIWEI7FOjQrfihu4WOWdiRiGr3JzpjZ_e8AYW-N4';
-      // Direct Published CSV URL (File → Publish to web → CSV)
-      const PUBLISHED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7w0RI9RMbD3vx841C6CHzFyHwwbX2L5zyhjabc2ov7AvR7OWzJfXgvbiPvV6oXvhJZj5RCmcOzq2r/pub?gid=1832973148&single=true&output=csv';
+        // Direct URL (kept for reference; fetching via proxy chain below)
+        // const CSV_URL = "...";
 
-      // ============================================================
-      // DATA (Google Sheets se load hoga)
-      // ============================================================
-      const VILLAGE_COLORS = [
-        { from: "hsla(230,70%,55%,0.15)", border: "hsla(230,70%,55%,0.3)", text: "hsl(230,70%,75%)" },
-        { from: "hsla(262,60%,50%,0.15)", border: "hsla(262,60%,50%,0.3)", text: "hsl(262,60%,75%)" },
-        { from: "hsla(142,70%,40%,0.15)", border: "hsla(142,70%,40%,0.3)", text: "hsl(142,70%,65%)" },
-        { from: "hsla(38,85%,50%,0.15)", border: "hsla(38,85%,50%,0.3)", text: "hsl(38,85%,70%)" },
-      ];
-      const VILLAGE_ICONS = ["🏘️", "🌾", "🌿", "🏡"];
-      const PIE_COLORS = ["hsl(230,70%,60%)", "hsl(262,60%,55%)", "hsl(142,70%,45%)", "hsl(38,85%,55%)"];
+        let records = [];
+        let currentTab = 'khasra';
 
-      let VILLAGES = [];
-      let VILLAGE_STATS = {};
-      let TOTAL_RECORDS = 0;
-      let landRecords = [];
-      let dataLoaded = false;
-
-      // ============================================================
-      // CSV PARSER
-      // Col order: ID | क्रमांक | ग्राम | खसरा नं | बसरा नं | क्षेत्रफल | भूमिस्वामी | चराई | सीलिंग | सिंचित/असिंचित | निस्तार | कैफियत
-      // ============================================================
-      function parseCSV(csvText) {
-        const lines = csvText.trim().split('\n');
-        const records = [];
-        // Row 1 = headers, skip karo
-        for (let i = 1; i < lines.length; i++) {
-          const cols = splitCSVLine(lines[i]);
-          if (!cols || cols.length < 3) continue;
-          const village = (cols[2] || '').trim();
-          if (!village) continue;
-          records.push({
-            id: i,
-            serialNumber: parseFloat(cols[1]) || i,
-            village: village,
-            khasraNumber: (cols[3] || '').trim(),
-            basraNumber: (cols[4] || '').trim(),
-            area: parseFloat(cols[5]) || 0,
-            ownerName: (cols[6] || '').trim(),
-            isGrazingLand: (cols[7] || '').trim(),
-            isCeilingLand: (cols[8] || '').trim(),
-            landType: (cols[9] || '').trim(),
-            nistarDetails: (cols[10] || '').trim(),
-            kaifiyat: (cols[11] || '').trim(),
-          });
+        // ── Toast ──────────────────────────────────────
+        function toast(msg, type = 'success') {
+            const bg = { success: 'linear-gradient(to right,#059669,#047857)', error: 'linear-gradient(to right,#dc2626,#b91c1c)', info: 'linear-gradient(to right,#2563eb,#1a1a6e)' };
+            Toastify({ text: msg, duration: 3500, gravity: 'top', position: 'right', style: { background: bg[type] || bg.info, borderRadius: '10px', fontWeight: '700', fontSize: '14px' } }).showToast();
         }
-        return records;
-      }
 
-      function splitCSVLine(line) {
-        // Handle quoted fields with commas inside
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (ch === '"') {
-            inQuotes = !inQuotes;
-          } else if (ch === ',' && !inQuotes) {
-            result.push(current);
-            current = '';
-          } else {
-            current += ch;
-          }
-        }
-        result.push(current);
-        return result;
-      }
+        // ── CSV Loader with CORS proxy fallback ────────
+        async function loadData() {
+            document.getElementById('recordCountBadge').textContent = '⏳ डेटा लोड हो रहा है...';
 
-      // Helper to generate status badges
-      function getStatusBadges(r) {
-        const irrigated = isIrrigated(r.landType);
-        const grazing = isGrazingLand(r);
-        const ceiling = isCeilingLand(r);
-        const nistar = r.nistarDetails && r.nistarDetails.trim() !== '';
+            // Multiple fetch strategies: direct → proxy1 → proxy2
+            const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7w0RI9RMbD3vx841C6CHzFyHwwbX2L5zyhjabc2ov7AvR7OWzJfXgvbiPvV6oXvhJZj5RCmcOzq2r/pub?gid=1832973148&single=true&output=csv";
+            const URLS = [
+                SHEET_URL,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_URL)}`,
+                `https://corsproxy.io/?${encodeURIComponent(SHEET_URL)}`
+            ];
 
-        return `
-          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
-            <span class="${irrigated ? 'badge-success' : 'badge-warning'}">
-              ${irrigated ? '💧 सिंचित भूमि' : '🌱 असिंचित भूमि'}
-            </span>
-            <span class="${grazing ? 'badge-info' : 'badge-error'}">
-              ${grazing ? '🌿 चराई भूमि है' : '✗ चराई भूमि नहीं'}
-            </span>
-            <span class="${ceiling ? 'badge-warning' : 'badge-info'}" style="${!ceiling ? 'background:hsla(220,40%,18%,0.7);color:var(--muted-fg);border:1px solid var(--border);' : ''}">
-              ${ceiling ? '⚖️ सीलिंग भूमि है' : '⚖️ सीलिंग भूमि नहीं'}
-            </span>
-            <span class="${nistar ? 'badge-purple' : 'badge-error'}">
-              ${nistar ? '📜 निस्तार पत्रक में दर्ज' : '📜 निस्तार में दर्ज नहीं'}
-            </span>
-          </div>
-        `;
-      }
-
-
-      async function loadFromGoogleSheets() {
-        showGlobalLoader('Google Sheets से डेटा लोड हो रहा है...');
-
-        // Published CSV URL — direct fetch (no CORS issues)
-        const proxies = [
-          `https://corsproxy.io/?${encodeURIComponent(PUBLISHED_CSV_URL)}`,
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(PUBLISHED_CSV_URL)}`,
-          PUBLISHED_CSV_URL
-        ];
-
-        let csvText = null;
-        let lastError = '';
-
-        for (const proxyURL of proxies) {
-          try {
-            console.log("Trying:", proxyURL);
-            const res = await fetch(proxyURL, { cache: "no-store", method: "GET" });
-            if (!res.ok) {
-              lastError = `Status: ${res.status}`;
-              continue;
+            let csvText = null;
+            for (const url of URLS) {
+                try {
+                    const res = await fetch(url, { cache: 'no-cache' });
+                    if (!res.ok) continue;
+                    const text = await res.text();
+                    // Validate it looks like CSV (has commas/newlines)
+                    if (text.includes(',') && text.length > 100) {
+                        csvText = text;
+                        break;
+                    }
+                } catch (_) { /* try next */ }
             }
 
-            const ct = res.headers.get('content-type') || '';
-            if (ct.includes('json')) {
-              const j = await res.json();
-              csvText = j.contents || j.data || null;
-            } else {
-              csvText = await res.text();
+            if (!csvText) {
+                document.getElementById('recordCountBadge').textContent = '❌ लोड विफल';
+                toast('डेटा लोड विफल — इंटरनेट कनेक्शन जांचें', 'error');
+                return;
             }
 
-            if (csvText && csvText.length > 20 && csvText.includes(',')) {
-              console.log("Fetched successfully via:", proxyURL);
-              break; // Success
+            records = parseCSV(csvText);
+            fillVillages();
+            document.getElementById('recordCountBadge').textContent = `✅ ${records.length} रिकॉर्ड लोड`;
+            toast(`${records.length} रिकॉर्ड सफलतापूर्वक लोड हुए`, 'success');
+        }
+
+        function parseCSV(text) {
+            const rows = []; let row = []; let field = ''; let inQ = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i], n = text[i + 1];
+                if (inQ) {
+                    if (c === '"' && n === '"') { field += '"'; i++; }
+                    else if (c === '"') inQ = false;
+                    else field += c;
+                } else {
+                    if (c === '"') inQ = true;
+                    else if (c === ',') { row.push(field.trim()); field = ''; }
+                    else if (c === '\n' || c === '\r') {
+                        row.push(field.trim());
+                        if (row.length > 1) rows.push(row);
+                        row = []; field = '';
+                        if (c === '\r' && n === '\n') i++;
+                    } else field += c;
+                }
             }
-          } catch (e) {
-            console.warn("Fetch failed for", proxyURL, e);
-            lastError = e.message;
-            continue;
-          }
+            if (row.length || field) { row.push(field.trim()); rows.push(row); }
+            const h = rows[0];
+            return rows.slice(1).map((r, i) => {
+                const o = {}; h.forEach((k, j) => o[k] = r[j]);
+                return {
+                    id: i + 1,
+                    v: o['ग्राम'] || '',
+                    kn: o['खसरा नंबर'] || '',
+                    bn: o['बसरा नंबर'] || '',
+                    owner: (o['भूमिस्वामी का नाम'] || 'अज्ञात').replace(/\n/g, ' '),
+                    area: parseFloat(o['क्षेत्रफल'] || 0).toFixed(3),
+                    type: o['सिंचित / असिंचित'] || '',
+                    isGrazing: o['चराई भूमि है ?'] || '',
+                    isCeiling: o['सीलिंग भूमि है ?'] || '',
+                    nistar: o['निस्तार पत्रक विवरण'] || ''
+                };
+            });
         }
 
-        if (!csvText || csvText.length < 10 || !csvText.includes(',')) {
-          hideGlobalLoader();
-          showGlobalError('Failed to fetch — Sheet publicly share karo aur retry karo. Errr: ' + lastError);
-          return false;
+        // ── Status Helpers ─────────────────────────────
+        const isIrrigated = t => { if (!t) return false; const s = t.trim(); return s.includes('सिंचित') && !s.includes('असिंचित'); };
+        const isGrazingLand = r => { const g = String(r.isGrazing || '').trim(); const n = String(r.nistar || '').trim(); const chk = t => t.includes('चराई') || t.includes('चरागन') || t === 'हाँ' || t === 'yes'; return g === 'हाँ' || chk(g) || chk(n); };
+        const isCeilingLand = r => { const v = String(r.isCeiling || '').trim(); return v === 'हाँ' || v.includes('सीलिंग') || v === 'yes'; };
+
+        function getStatusBadgesHTML(r) {
+            const irrigated = isIrrigated(r.type);
+            const grazing = isGrazingLand(r);
+            const ceiling = isCeilingLand(r);
+            const nistar = r.nistar && r.nistar.trim() !== '';
+
+            return `
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
+                <span class="type-badge ${irrigated ? 'sinchai' : 'asinchai'}">
+                    ${irrigated ? '💧 सिंचित' : '🌱 असिंचित'}
+                </span>
+                <span class="type-badge ${grazing ? 'sinchai' : 'danger'}">
+                    ${grazing ? '🌿 चराई भूमि है' : '✗ चराई नहीं'}
+                </span>
+                <span class="type-badge ${ceiling ? 'asinchai' : 'muted'}">
+                    ${ceiling ? '⚖️ सीलिंग भूमि है' : '⚖️ सीलिंग नहीं'}
+                </span>
+                <span class="type-badge ${nistar ? 'nistar' : 'danger'}">
+                    ${nistar ? '📜 निस्तार में दर्ज' : '✗ निस्तार पत्रक नहीं'}
+                </span>
+            </div>`;
         }
 
-        try {
-          landRecords = parseCSV(csvText);
-          if (landRecords.length === 0) throw new Error('Sheet mein data nahi mila');
-
-          VILLAGES = [...new Set(landRecords.map(r => r.village).filter(Boolean))];
-          VILLAGE_STATS = {};
-          VILLAGES.forEach(v => { VILLAGE_STATS[v] = landRecords.filter(r => r.village === v).length; });
-          TOTAL_RECORDS = landRecords.length;
-          dataLoaded = true;
-          hideGlobalLoader();
-          return true;
-        } catch (err) {
-          console.error('Parse error:', err);
-          hideGlobalLoader();
-          showGlobalError(err.message);
-          return false;
+        function fillVillages() {
+            const sel = document.getElementById('villageInput');
+            const vals = [...new Set(records.map(r => r.v).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'hi'));
+            while (sel.options.length > 1) sel.remove(1);
+            vals.forEach(v => { const o = document.createElement('option'); o.value = o.text = v; sel.appendChild(o); });
         }
-      }
 
-      function showGlobalLoader(msg) {
-        document.getElementById('globalLoader').style.display = 'flex';
-        document.getElementById('globalLoaderMsg').textContent = msg || 'लोड हो रहा है...';
-        document.getElementById('app').style.display = 'none';
-      }
-      function hideGlobalLoader() {
-        document.getElementById('globalLoader').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-      }
-      function showGlobalError(detail) {
-        document.getElementById('globalLoader').style.display = 'flex';
-        document.getElementById('globalLoaderMsg').innerHTML = `
-    <span style="font-size:40px;margin-bottom:8px;">⚠️</span>
-    <span style="color:hsl(0,72%,75%);font-size:16px;font-weight:600;margin-bottom:4px;">डेटा लोड नहीं हुआ</span>
-    <span style="color:var(--muted-fg);font-size:13px;text-align:center;max-width:320px;line-height:1.6;">
-      Google Sheet की sharing जांचें:<br>
-      <b style="color:hsl(142,70%,65%);">File → Share → Anyone with the link → Viewer</b>
-    </span>
-    ${detail ? `<span style="color:var(--muted-fg);font-size:11px;margin-top:4px;opacity:0.6;">${detail}</span>` : ''}
-    <button onclick="location.reload()" style="margin-top:20px;padding:12px 32px;border-radius:12px;background:linear-gradient(135deg,hsl(230,70%,55%),hsl(262,60%,50%));color:white;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;box-shadow:0 0 30px hsla(230,70%,60%,0.3);">↺ पुनः प्रयास</button>
-  `;
-      }
-
-      // Helpers
-      function isIrrigated(text) { if (!text) return false; const t = text.trim(); return t.includes('सिंचित') && !t.includes('असिंचित'); }
-      function isNonIrrigated(text) { if (!text) return false; const t = text.trim(); return t.includes('असिंचित'); }
-      function isGrazingLand(r) { const g = String(r.isGrazingLand || '').trim(); const n = String(r.nistarDetails || '').trim(); const chk = t => t.includes('चराई') || t.includes('चरागन') || t.includes('शामिलात') || t === 'हाँ' || t === 'yes' || t === 'true'; return r.isGrazingLand === true || chk(g) || chk(n); }
-      function isCeilingLand(r) { const v = String(r.isCeilingLand || '').trim(); return r.isCeilingLand === true || v === 'हाँ' || v === 'yes' || v === 'true' || v.includes('सीलिंग'); }
-
-      // ============================================================
-      // STATE
-      // ============================================================
-      let currentTab = 'dashboard';
-      let searchTab = 'khasra';
-      let selectedVillage = '';
-      let selectedBasra = '';
-      let recentSearches = [];
-      let tableData = [...landRecords];
-      let tablePage = 1;
-      let tableSortKey = 'id';
-      let tableSortDir = 'asc';
-      let selectedRowId = null;
-      const PAGE_SIZE = 10;
-
-      // ============================================================
-      // NAV
-      // ============================================================
-      function switchTab(tab) {
-        currentTab = tab;
-        document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; p.classList.remove('active'); });
-        const pg = document.getElementById('page-' + tab);
-        pg.style.display = 'block';
-        setTimeout(() => pg.classList.add('active'), 10);
-        document.querySelectorAll('[data-tab]').forEach(b => {
-          b.classList.toggle('active', b.dataset.tab === tab);
+        // ── Village change → fill basra ───────────────
+        document.getElementById('villageInput').addEventListener('change', function () {
+            if (currentTab !== 'basra') return;
+            const v = this.value;
+            const sel = document.getElementById('basraVal');
+            const basras = [...new Set(records.filter(r => r.v === v).map(r => r.bn).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'hi'));
+            sel.innerHTML = '<option value="" disabled selected>— बसरा चुनें —</option>';
+            basras.forEach(b => { const o = document.createElement('option'); o.value = o.text = b; sel.appendChild(o); });
+            sel.disabled = false;
+            sel.classList.remove('form-select');
+            sel.className = 'form-select';
+            toast(`${basras.length} बसरा उपलब्ध`, 'info');
         });
-        if (tab === 'statistics') renderStatistics();
-        if (tab === 'table') renderTable();
-      }
-      function toggleMenu() { const m = document.getElementById('mobileNav'); m.style.display = m.style.display === 'flex' ? 'none' : 'flex'; }
-      function closeMenu() { document.getElementById('mobileNav').style.display = 'none'; }
 
-      // ============================================================
-      // ANIMATED COUNTER
-      // ============================================================
-      function animateCount(el, target, duration = 2000) {
-        let start = 0; const step = target / (duration / 16);
-        const timer = setInterval(() => {
-          start += step;
-          if (start >= target) { el.textContent = target.toLocaleString('en-IN'); clearInterval(timer); }
-          else el.textContent = Math.floor(start).toLocaleString('en-IN');
-        }, 16);
-      }
+        // ── Tab Switch ────────────────────────────────
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('khasraGroup').style.display = tab === 'khasra' ? '' : 'none';
+            document.getElementById('basraGroup').style.display = tab === 'basra' ? '' : 'none';
+            document.getElementById('tab-khasra').className = 'tab-btn' + (tab === 'khasra' ? ' active' : '');
+            document.getElementById('tab-basra').className = 'tab-btn' + (tab === 'basra' ? ' active' : '');
+            document.getElementById('resultsDiv').innerHTML = '';
+            document.getElementById('emptyDiv').style.display = 'none';
 
-      // ============================================================
-      // DASHBOARD
-      // ============================================================
-      function initDashboard() {
-        animateCount(document.getElementById('totalCounter'), TOTAL_RECORDS);
-
-        // Village cards
-        const vc = document.getElementById('villageCards');
-        vc.innerHTML = VILLAGES.map((v, i) => `
-    <div class="stat-card" style="border-color:${VILLAGE_COLORS[i].border}">
-      <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:12px;">
-        <span style="font-size:24px;">${VILLAGE_ICONS[i]}</span>
-        <span style="color:${VILLAGE_COLORS[i].text};font-size:12px;">📍</span>
-      </div>
-      <p style="font-size:12px;font-weight:500;margin-bottom:4px;color:var(--muted-fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v}</p>
-      <div style="font-size:24px;font-weight:700;color:${VILLAGE_COLORS[i].text};" id="vcounter-${i}">0</div>
-      <p style="font-size:12px;margin-top:4px;color:var(--muted-fg);">रिकॉर्ड</p>
-    </div>
-  `).join('');
-        VILLAGES.forEach((v, i) => animateCount(document.getElementById('vcounter-' + i), VILLAGE_STATS[v], 1500 + i * 200));
-
-        const irrigated = landRecords.filter(r => isIrrigated(r.landType)).length;
-        const nonIrrigated = landRecords.filter(r => isNonIrrigated(r.landType)).length;
-        const grazing = landRecords.filter(r => isGrazingLand(r)).length;
-        const ceiling = landRecords.filter(r => isCeilingLand(r)).length;
-
-        const qs = document.getElementById('quickStats');
-        const stats = [
-          { label: "सिंचित भूमि", value: irrigated, icon: "🔹", color: { from: "hsla(200,75%,50%,0.15)", border: "hsla(200,75%,50%,0.3)", text: "hsl(200,75%,70%)" } },
-          { label: "असिंचित भूमि", value: nonIrrigated, icon: "🌱", color: { from: "hsla(38,85%,50%,0.15)", border: "hsla(38,85%,50%,0.3)", text: "hsl(38,85%,70%)" } },
-          { label: "चराई भूमि", value: grazing, icon: "🌿", color: { from: "hsla(142,70%,40%,0.15)", border: "hsla(142,70%,40%,0.3)", text: "hsl(142,70%,65%)" } },
-          { label: "सीलिंग भूमि", value: ceiling, icon: "⚖️", color: { from: "hsla(262,60%,50%,0.15)", border: "hsla(262,60%,50%,0.3)", text: "hsl(262,60%,75%)" } },
-        ];
-        qs.innerHTML = stats.map((s, i) => `
-    <div style="border-radius:16px;padding:16px;transition:all 0.3s;background:${s.color.from};border:1px solid ${s.color.border};">
-      <div style="color:${s.color.text};font-size:18px;margin-bottom:8px;">${s.icon}</div>
-      <div style="font-size:20px;font-weight:700;color:${s.color.text};" id="qcounter-${i}">0</div>
-      <p style="font-size:12px;margin-top:4px;color:var(--muted-fg);">${s.label}</p>
-    </div>
-  `).join('');
-        stats.forEach((s, i) => animateCount(document.getElementById('qcounter-${i}'), s.value, 1200 + i * 150));
-      }
-
-      async function refreshData() {
-        showGlobalLoader('डेटा अपडेट हो रहा है...');
-        const ok = await loadFromGoogleSheets();
-        if (ok) {
-          if (currentTab === 'dashboard') initDashboard();
-          if (currentTab === 'statistics') renderStatistics();
-          if (currentTab === 'table') renderTable();
-          // Update dropdowns
-          const tvf = document.getElementById('tableVillageFilter');
-          if (tvf) tvf.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join('');
-          const vf2 = document.getElementById('villageFilter2');
-          if (vf2) vf2.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join('');
-          initSearch();
+            // If village already chosen, populate basra
+            if (tab === 'basra') {
+                const v = document.getElementById('villageInput').value;
+                if (v) document.getElementById('villageInput').dispatchEvent(new Event('change'));
+            }
         }
-      }
 
-      // ============================================================
-      // SEARCH
-      // ============================================================
-      function initSearch() {
-        const vd = document.getElementById('villageDropdown');
-        vd.innerHTML = VILLAGES.map(v => `<button class="dropdown-item ${v === selectedVillage ? 'selected' : ''}" onclick="selectVillage('${v}')">${v === selectedVillage ? '✓ ' : ''} ${v}</button>`).join('');
+        // ── Search ────────────────────────────────────
+        function handleSearch(e) {
+            e.preventDefault();
+            const v = document.getElementById('villageInput').value;
+            const val = currentTab === 'khasra'
+                ? document.getElementById('khasraVal').value.trim()
+                : document.getElementById('basraVal').value;
 
-        const tf2 = document.getElementById('tableVillageFilter');
-        if (tf2) {
-          tf2.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join('');
+            if (!v) { toast('कृपया ग्राम चुनें', 'error'); return; }
+            if (!val) { toast(`कृपया ${currentTab === 'khasra' ? 'खसरा' : 'बसरा'} नंबर चुनें/दर्ज करें`, 'error'); return; }
+
+            setLoading(true);
+            setTimeout(() => {
+                const found = currentTab === 'khasra'
+                    ? records.filter(r => r.v === v && r.kn == val)
+                    : records.filter(r => r.v === v && r.bn == val);
+                setLoading(false);
+                renderResults(found, v, val);
+            }, 60);
         }
-        const vf2 = document.getElementById('villageFilter2');
-        if (vf2) { vf2.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join(''); }
-      }
 
-      function toggleVillageDropdown() {
-        const d = document.getElementById('villageDropdown');
-        const open = d.style.display === 'block';
-        closeAllDropdowns();
-        if (!open) { d.style.display = 'block'; document.getElementById('villageChevron').style.transform = 'rotate(180deg)'; }
-      }
-      function toggleBasraDropdown() {
-        if (!selectedVillage) return;
-        const d = document.getElementById('basraDropdown');
-        const open = d.style.display === 'block';
-        closeAllDropdowns();
-        if (!open) { d.style.display = 'block'; document.getElementById('basraChevron').style.transform = 'rotate(180deg)'; }
-      }
-      function closeAllDropdowns() {
-        document.querySelectorAll('.dropdown-menu').forEach(d => d.style.display = 'none');
-        const vc = document.getElementById('villageChevron'); if (vc) vc.style.transform = '';
-        const bc = document.getElementById('basraChevron'); if (bc) bc.style.transform = '';
-      }
-
-      function selectVillage(v) {
-        selectedVillage = v;
-        selectedBasra = '';
-        document.getElementById('villageBtnText').textContent = v;
-        document.getElementById('villageBtnText').style.color = 'var(--fg)';
-        closeAllDropdowns();
-        clearSearchResult();
-
-        // Load basras
-        const basras = [...new Set(landRecords.filter(r => r.village === v).map(r => r.basraNumber))].sort();
-        const bd = document.getElementById('basraDropdown');
-        bd.innerHTML = basras.map(b => `<button onclick="selectBasra('${b}')">${b}</button>`).join('');
-        document.getElementById('basraBtnText').textContent = 'बसरा नंबर चुनें...';
-        document.getElementById('basraBtnText').style.color = 'var(--muted-fg)';
-        document.getElementById('basraHint').textContent = `${basras.length} बसरा नंबर उपलब्ध`;
-      }
-
-      function selectBasra(b) {
-        selectedBasra = b;
-        document.getElementById('basraBtnText').textContent = 'बसरा ' + b;
-        document.getElementById('basraBtnText').style.color = 'var(--fg)';
-        closeAllDropdowns();
-        clearSearchResult();
-      }
-
-      function switchSearchTab(tab) {
-        searchTab = tab;
-        const ki = document.getElementById('khasraInputWrap');
-        const bi = document.getElementById('basraInputWrap');
-        const ktb = document.getElementById('khasraTabBtn');
-        const btb = document.getElementById('basraTabBtn');
-        const sb = document.getElementById('searchBtnText');
-        if (tab === 'khasra') {
-          ki.style.display = 'block'; bi.style.display = 'none';
-          ktb.classList.add('active'); btb.classList.remove('active');
-          sb.textContent = 'खोजें';
-          document.getElementById('searchBtn').querySelector('span:first-child').textContent = '🔍';
-        } else {
-          ki.style.display = 'none'; bi.style.display = 'block';
-          btb.classList.add('active'); ktb.classList.remove('active');
-          sb.textContent = 'सभी खसरे खोजें';
-          document.getElementById('searchBtn').querySelector('span:first-child').textContent = '👥';
+        function setLoading(on) {
+            document.getElementById('loadingDiv').style.display = on ? '' : 'none';
+            document.getElementById('searchBtn').disabled = on;
+            document.getElementById('btnLabel').textContent = on ? 'खोज रहे हैं...' : 'खोजें';
         }
-        clearSearchResult();
-      }
 
-      function clearSearchResult() {
-        document.getElementById('searchError').style.display = 'none';
-        document.getElementById('resultCard').style.display = 'none';
-        document.getElementById('initialState').style.display = 'flex';
-        document.getElementById('loadingState').style.display = 'none';
-      }
+        // ── Render ────────────────────────────────────
+        function renderResults(found, v, val) {
+            const res = document.getElementById('resultsDiv');
+            const emp = document.getElementById('emptyDiv');
+            res.innerHTML = '';
 
-      function doSearch() {
-        const err = document.getElementById('searchError');
-        if (!selectedVillage) { err.textContent = '⚠️ कृपया ग्राम चुनें'; err.style.display = 'block'; return; }
+            if (!found.length) {
+                emp.style.display = '';
+                toast('कोई रिकॉर्ड नहीं मिला', 'error');
+                return;
+            }
+            emp.style.display = 'none';
+            toast(`${found.length} रिकॉर्ड मिले`, 'success');
 
-        if (searchTab === 'khasra') {
-          const kn = document.getElementById('khasraInput').value.trim();
-          if (!kn) { err.textContent = '⚠️ कृपया खसरा नंबर दर्ज करें'; err.style.display = 'block'; return; }
-          err.style.display = 'none';
-          showLoading();
-          setTimeout(() => {
-            const result = landRecords.find(r => r.village === selectedVillage && r.khasraNumber.toLowerCase() === kn.toLowerCase());
-            if (result) { showKhasraResult(result); addRecent({ village: selectedVillage, khasra: kn, tab: 'khasra' }); }
-            else showNoResult(`${selectedVillage} में खसरा नंबर "${kn}" नहीं मिला`);
-          }, 600);
-        } else {
-          if (!selectedBasra) { err.textContent = '⚠️ कृपया बसरा नंबर चुनें'; err.style.display = 'block'; return; }
-          err.style.display = 'none';
-          showLoading();
-          setTimeout(() => {
-            const results = landRecords.filter(r => r.village === selectedVillage && r.basraNumber === selectedBasra);
-            if (results.length) { showBasraResult(results); addRecent({ village: selectedVillage, basra: selectedBasra, tab: 'basra' }); }
-            else showNoResult(`${selectedVillage} में बसरा नंबर "${selectedBasra}" नहीं मिला`);
-          }, 600);
-        }
-      }
-
-      function showLoading() {
-        document.getElementById('initialState').style.display = 'none';
-        document.getElementById('loadingState').style.display = 'flex';
-        document.getElementById('resultCard').style.display = 'none';
-      }
-
-      function showNoResult(msg) {
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('initialState').style.display = 'none';
-        document.getElementById('resultCard').style.display = 'block';
-        document.getElementById('resultCard').innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;padding:48px 0;gap:16px;text-align:center;animation:fadeUp 0.4s ease;">
-      <div style="width:80px;height:80px;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:36px;background:hsla(0,72%,51%,0.1);border:1px solid hsla(0,72%,51%,0.25);">❌</div>
-      <div>
-        <p style="font-size:16px;font-weight:600;margin-bottom:4px;color:hsl(0,72%,75%);">कोई रिकॉर्ड नहीं मिला</p>
-        <p style="font-size:14px;color:var(--muted-fg);">${msg}</p>
-        <p style="font-size:12px;margin-top:8px;color:var(--muted-fg);">सुझाव: खसरा नंबर की वर्तनी जांचें (उदा: 123/1)</p>
-      </div>
-      <button class="btn-primary" onclick="clearSearchResult()" style="font-size:14px;margin-top:8px;">↺ फिर से खोजें</button>
-    </div>`;
-      }
-
-      function showKhasraResult(r) {
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('initialState').style.display = 'none';
-        const rc = document.getElementById('resultCard');
-        rc.style.display = 'block';
-        rc.innerHTML = `
-    <div style="animation:fadeUp 0.4s ease;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;padding:16px;border-radius:16px;background:hsla(142,70%,40%,0.1);border:1px solid hsla(142,70%,40%,0.25);">
-        <span style="font-size:24px;color:hsl(142,70%,65%);">✅</span>
-        <div>
-          <p style="font-weight:600;color:hsl(142,70%,65%);font-size:16px;">रिकॉर्ड मिल गया!</p>
-          <p style="font-size:14px;color:var(--muted-fg);">${r.village} — खसरा ${r.khasraNumber}</p>
-        </div>
-      </div>
-      <div class="glass-card" style="border-radius:24px;padding:24px;">
-        ${getStatusBadges(r)}
-        <div class="fields-grid">
-          ${[
-            ['🔢 क्रमांक', r.serialNumber],
-            ['🏘️ ग्राम', r.village],
-            ['📋 खसरा नंबर', r.khasraNumber],
-            ['📄 बसरा नंबर', r.basraNumber],
-            ['📐 क्षेत्रफल (हेक्टेयर)', Number(r.area).toFixed(3) + ' हे.'],
-            ['👤 भूमिस्वामी का नाम', r.ownerName],
-            ['📝 निस्तार विवरण', r.nistarDetails || '—'],
-          ].map(([l, v]) => `
-            <div class="result-field">
-              <div class="field-label">${l}</div>
-              <div class="field-value">${v}</div>
+            // Portfolio banner for basra
+            if (currentTab === 'basra') {
+                const totalArea = found.reduce((s, r) => s + parseFloat(r.area), 0).toFixed(3);
+                const banner = document.createElement('div');
+                banner.className = 'portfolio-banner';
+                banner.style.marginBottom = '24px';
+                banner.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="font-size:11px; font-weight:700; opacity:0.6; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px;">भूमिस्वामी पोर्टफोलियो</div>
+            <div style="font-size:22px; font-weight:900; line-height:1.1;">${found[0].owner}</div>
+            <div style="margin-top:6px; opacity:0.75; font-size:14px;">ग्राम: ${v} &nbsp;|&nbsp; बसरा: ${val}</div>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div class="pf-stat">
+              <div class="pf-stat-label">कुल खसरा</div>
+              <div class="pf-stat-val">${found.length}</div>
             </div>
-          `).join('')}
+            <div class="pf-stat">
+              <div class="pf-stat-label">कुल क्षेत्रफल</div>
+              <div class="pf-stat-val">${totalArea} <span style="font-size:14px;font-weight:600;opacity:0.7;">हे.</span></div>
+            </div>
+          </div>
+          <button class="btn-portfolio-pdf" onclick="exportPortfolioPDF('${escJS(found[0].owner)}','${escJS(v)}','${escJS(val)}',${found.length},${totalArea})">
+            ⬇ PDF रिपोर्ट
+          </button>
+        </div>`;
+                res.appendChild(banner);
+            }
+
+            // Cards grid
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px;';
+            found.forEach((r, idx) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.style.animationDelay = `${idx * 0.06}s`;
+                const hdrClass = `card-header-${currentTab}`;
+                const typeBadge = r.type.includes('असिंचित') ? 'asinchai' : 'sinchai';
+                card.innerHTML = `
+        <div class="${hdrClass}" style="padding:16px 20px; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:10px; font-weight:700; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px;">
+              ${currentTab === 'khasra' ? 'खसरा नंबर' : 'बसरा नंबर'}
+            </div>
+            <div class="card-kn" style="color:#fff;">${currentTab === 'khasra' ? r.kn : r.bn}</div>
+            <div style="font-size:13px; color:rgba(255,255,255,0.7); margin-top:4px; font-weight:600;">${r.v}</div>
+          </div>
+          <button class="btn-pdf" onclick="exportSinglePDF(${JSON.stringify(r).replace(/"/g, '&quot;')})">
+            ⬇ PDF
+          </button>
         </div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:24px;">
-        <button class="btn-primary" onclick="printRecord(${r.id})" style="font-size:14px;">📄 PDF Export</button>
-        <button onclick="clearSearchResult()" style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;background:hsla(220,40%,14%,0.8);border:1px solid var(--border);color:var(--muted-fg);cursor:pointer;font-family:inherit;transition:all 0.3s;">↺ नया खोज करें</button>
-      </div>
-    </div>`;
-      }
-
-
-      function showBasraResult(records) {
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('initialState').style.display = 'none';
-        const rc = document.getElementById('resultCard');
-        rc.style.display = 'block';
-        const totalArea = records.reduce((s, r) => s + r.area, 0);
-        const irrigatedCount = records.filter(r => isIrrigated(r.landType)).length;
-        const nonIrrigatedCount = records.filter(r => isNonIrrigated(r.landType)).length;
-        const ownerName = records[0]?.ownerName || '';
-        const uniqueOwners = [...new Set(records.map(r => r.ownerName.trim()))];
-
-        rc.innerHTML = `
-    <div style="animation:fadeUp 0.4s ease;display:flex;flex-direction:column;gap:16px;">
-      <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:16px;background:hsla(142,70%,40%,0.1);border:1px solid hsla(142,70%,40%,0.25);">
-        <span style="font-size:24px;">✅</span>
-        <div>
-          <p style="font-weight:600;font-size:16px;color:hsl(142,70%,65%);">${records.length} खसरे मिले!</p>
-          <p style="font-size:14px;color:var(--muted-fg);">${selectedVillage} — बसरा ${selectedBasra}</p>
-        </div>
-      </div>
-      ${uniqueOwners.length > 1 ? `<div style="padding:12px;border-radius:12px;font-size:14px;background:hsla(38,85%,50%,0.1);border:1px solid hsla(38,85%,50%,0.3);color:hsl(38,85%,70%);">⚠️ इस बसरे में अलग-अलग नाम मिले: ${uniqueOwners.map(n => `<span style="display:block;margin-left:16px;">• ${n}</span>`).join('')}</div>` : ''}
-      <div style="border-radius:24px;padding:24px;overflow:hidden;position:relative;background:var(--gradient-primary);">
-        <div style="position:absolute;inset:0;opacity:0.1;background:radial-gradient(circle at 80% 20%,white 0%,transparent 50%);"></div>
-        <div style="position:relative;z-index:1;">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <div style="width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+        <div style="padding:18px 20px; display:flex; flex-direction:column; gap:14px;">
+          ${getStatusBadgesHTML(r)}
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="stat-chip">
+              <div class="stat-chip-label">खसरा नं.</div>
+              <div class="stat-chip-val">${r.kn}</div>
+            </div>
+            <div class="stat-chip">
+              <div class="stat-chip-label">बसरा नं.</div>
+              <div class="stat-chip-val">${r.bn}</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border); padding-top:12px;">
+            <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">भूमिस्वामी</div>
+            <div style="font-size:14px; font-weight:700; color:var(--text-main); line-height:1.4;">${r.owner}</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; border-top:1px solid var(--border); padding-top:12px;">
             <div>
-              <p style="color:white;font-weight:700;font-size:16px;">${ownerName}</p>
-              <p style="color:rgba(255,255,255,0.7);font-size:14px;">📍 ${selectedVillage} | # बसरा ${selectedBasra}</p>
+              <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:4px;">क्षेत्रफल (हे.)</div>
+              <div style="font-size:18px; font-weight:900; color:var(--text-main);">${r.area}</div>
+            </div>
+            <div>
+              <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">प्रकार</div>
+              <span class="type-badge ${typeBadge}">${r.type || '—'}</span>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
-            ${[['#', 'कुल खसरे', records.length], ['📏', 'कुल क्षेत्रफल', totalArea.toFixed(3) + ' हे.'], ['💧', 'सिंचित', irrigatedCount], ['🌱', 'असिंचित', nonIrrigatedCount]].map(([icon, label, val]) => `
-              <div style="border-radius:12px;padding:12px;text-align:center;background:rgba(255,255,255,0.15);">
-                <div style="color:rgba(255,255,255,0.7);font-size:16px;margin-bottom:4px;">${icon}</div>
-                <p style="color:white;font-weight:700;font-size:18px;">${val}</p>
-                <p style="color:rgba(255,255,255,0.6);font-size:12px;">${label}</p>
-              </div>`).join('')}
-          </div>
-        </div>
-      </div>
-      <div>
-        <p style="font-weight:600;margin-bottom:12px;font-size:14px;color:var(--muted-fg);">📋 खसरा विवरण (कुल ${records.length} खसरे)</p>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
-          ${records.map((r, i) => `
-            <div class="glass-card" style="border-radius:16px;padding:16px;cursor:pointer;" onclick="toggleKhasraExpand(this)">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <p style="font-weight:700;font-size:15px;color:var(--fg);">🏞️ खसरा ${r.khasraNumber}</p>
-                <span style="color:var(--muted-fg);transition:transform 0.2s;" class="expand-arrow">▼</span>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span style="font-weight:600;font-size:15px;color:var(--primary);">${Number(r.area).toFixed(3)} हे.</span>
-              </div>
-              ${getStatusBadges(r)}
-              <div class="khasra-details" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                <p style="font-size:12px;color:var(--muted-fg);">👤 ${r.ownerName}</p>
-                <p style="font-size:12px;color:var(--muted-fg);margin-top:4px;">चराई भूमि: ${isGrazingLand(r) ? 'हाँ ✅' : 'नहीं ❌'}</p>
-                <p style="font-size:12px;color:var(--muted-fg);margin-top:4px;">निस्तार: ${r.nistarDetails || '—'}</p>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;">
-        <button class="btn-primary" onclick="printBasraResult()" style="font-size:14px;">📄 PDF Export</button>
-        <button onclick="clearSearchResult()" style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;background:hsla(220,40%,14%,0.8);border:1px solid var(--border);color:var(--muted-fg);cursor:pointer;font-family:inherit;">↺ नया खोज करें</button>
-      </div>
-    </div>`;
-        // Store for print
-        window._basraRecords = records;
-      }
-
-      function toggleKhasraExpand(el) {
-        const det = el.querySelector('.khasra-details');
-        const arr = el.querySelector('.expand-arrow');
-        const open = det.style.display === 'block';
-        det.style.display = open ? 'none' : 'block';
-        arr.style.transform = open ? '' : 'rotate(180deg)';
-      }
-
-      function addRecent(s) {
-        recentSearches = [s, ...recentSearches.filter(p => !(p.village === s.village && p.khasra === s.khasra && p.basra === s.basra && p.tab === s.tab))].slice(0, 5);
-        renderRecentSearches();
-      }
-
-      function renderRecentSearches() {
-        const wrap = document.getElementById('recentSearchesWrap');
-        const list = document.getElementById('recentSearchesList');
-        if (!recentSearches.length) { wrap.style.display = 'none'; return; }
-        wrap.style.display = 'block';
-        list.innerHTML = recentSearches.map((s, i) => `
-    <button class="recent-tag" onclick="applyRecent(${i})">${s.village} — ${s.tab === 'khasra' ? 'खसरा ' + s.khasra : 'बसरा ' + s.basra}</button>
-  `).join('');
-      }
-
-      function applyRecent(i) {
-        const s = recentSearches[i];
-        switchSearchTab(s.tab);
-        selectedVillage = s.village;
-        document.getElementById('villageBtnText').textContent = s.village;
-        document.getElementById('villageBtnText').style.color = 'var(--fg)';
-        if (s.khasra) document.getElementById('khasraInput').value = s.khasra;
-        if (s.basra) { selectedBasra = s.basra; document.getElementById('basraBtnText').textContent = 'बसरा ' + s.basra; document.getElementById('basraBtnText').style.color = 'var(--fg)'; }
-        clearSearchResult();
-      }
-
-      // ============================================================
-      // STATISTICS
-      // ============================================================
-      function getVillageStats() {
-        return VILLAGES.map((v, i) => {
-          const vRecs = landRecords.filter(r => r.village === v);
-          return {
-            name: v, color: PIE_COLORS[i],
-            total: VILLAGE_STATS[v],
-            irrigated: vRecs.filter(r => isIrrigated(r.landType)).length,
-            nonIrrigated: vRecs.filter(r => isNonIrrigated(r.landType)).length,
-            grazing: vRecs.filter(r => isGrazingLand(r)).length,
-            ceiling: vRecs.filter(r => isCeilingLand(r)).length,
-            nistar: vRecs.filter(r => r.nistarDetails && r.nistarDetails.trim() !== '').length,
-          };
-        });
-      }
-
-      function renderStatistics() {
-        const nistarCount = landRecords.filter(r => r.nistarDetails && r.nistarDetails.trim() !== '').length;
-        animateCount(document.getElementById('nistarCount'), nistarCount, 1000);
-        document.getElementById('nistarTotal').textContent = `कुल ${landRecords.length} में से`;
-
-        const stats = getVillageStats();
-
-        // Pie chart (canvas)
-        const pc = document.getElementById('pieChart');
-        if (!pc) return;
-        const ctx = pc.getContext('2d');
-        const total = stats.reduce((s, v) => s + v.total, 0);
-        let startAngle = -Math.PI / 2;
-        const cx = pc.width / 2, cy = pc.height / 2, r = 90, ir = 50;
-        ctx.clearRect(0, 0, pc.width, pc.height);
-        stats.forEach(s => {
-          const slice = (s.total / total) * Math.PI * 2;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-          ctx.closePath();
-          ctx.fillStyle = s.color;
-          ctx.fill();
-          // Donut hole
-          startAngle += slice;
-        });
-        ctx.beginPath();
-        ctx.arc(cx, cy, ir, 0, Math.PI * 2);
-        ctx.fillStyle = 'hsl(224,60%,8%)';
-        ctx.fill();
-
-        document.getElementById('pieLegend').innerHTML = stats.map(s => `
-    <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-      <div style="width:12px;height:12px;border-radius:50%;background:${s.color};flex-shrink:0;"></div>
-      <span style="color:var(--muted-fg);">${s.name}</span>
-    </div>`).join('');
-
-        renderBarChart();
-
-        // Stats table
-        document.getElementById('statsTableBody').innerHTML = stats.map((s, i) => `
-    <tr style="border-bottom:${i < stats.length - 1 ? '1px solid var(--border)' : 'none'};transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''">
-      <td style="color:${s.color};font-weight:500;">${s.name}</td>
-      <td style="font-weight:600;color:var(--fg);">${s.total.toLocaleString('en-IN')}</td>
-      <td style="color:hsl(200,75%,70%);">${s.irrigated}</td>
-      <td style="color:hsl(38,85%,70%);">${s.nonIrrigated}</td>
-      <td style="color:hsl(142,70%,65%);">${s.grazing}</td>
-      <td style="color:hsl(262,60%,75%);">${s.ceiling}</td>
-      <td style="color:hsl(280,60%,75%);">${s.nistar}</td>
-    </tr>`).join('');
-      }
-
-      function renderBarChart() {
-        const filter = document.getElementById('villageFilter2')?.value || 'सभी';
-        const stats = getVillageStats().filter(s => filter === 'सभी' || s.name === filter);
-        const bc = document.getElementById('barChart');
-        if (!bc) return;
-        const ctx = bc.getContext('2d');
-        ctx.clearRect(0, 0, bc.width, bc.height);
-
-        const maxVal = Math.max(...stats.flatMap(s => [s.irrigated, s.nonIrrigated, s.grazing]));
-        if (maxVal === 0) return;
-
-        const padding = { top: 20, right: 10, bottom: 40, left: 30 };
-        const chartW = bc.width - padding.left - padding.right;
-        const chartH = bc.height - padding.top - padding.bottom;
-        const groupW = chartW / stats.length;
-        const barW = Math.min((groupW - 10) / 3, 30);
-
-        // Grid lines
-        ctx.strokeStyle = 'hsl(220,40%,18%)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= 4; i++) {
-          const y = padding.top + (chartH / 4) * i;
-          ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(padding.left + chartW, y); ctx.stroke();
-          ctx.fillStyle = 'hsl(215,20%,55%)';
-          ctx.font = '10px Noto Sans Devanagari';
-          ctx.fillText(Math.round(maxVal * (1 - i / 4)), 2, y + 4);
+          ${r.nistar ? `
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:10px 14px; border-top:1px solid var(--border); padding-top:12px;">
+            <div style="font-size:10px; font-weight:700; color:#92400e; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:4px;">निस्तार विवरण</div>
+            <div style="font-size:12px; color:#78350f; font-style:italic; line-height:1.5;">${r.nistar}</div>
+          </div>` : ''}
+        </div>`;
+                grid.appendChild(card);
+            });
+            res.appendChild(grid);
         }
 
-        stats.forEach((s, gi) => {
-          const gx = padding.left + gi * groupW + groupW / 2;
-          const bars = [
-            { val: s.irrigated, color: 'hsl(200,75%,50%)' },
-            { val: s.nonIrrigated, color: 'hsl(38,85%,55%)' },
-            { val: s.grazing, color: 'hsl(142,70%,45%)' },
-          ];
-          const totalBarW = barW * 3 + 4;
-          bars.forEach((b, bi) => {
-            const bx = gx - totalBarW / 2 + bi * (barW + 2);
-            const bh = (b.val / maxVal) * chartH;
-            const by = padding.top + chartH - bh;
-            ctx.fillStyle = b.color;
-            ctx.beginPath();
-            ctx.roundRect(bx, by, barW, bh, [4, 4, 0, 0]);
-            ctx.fill();
-          });
-          // Label
-          ctx.fillStyle = 'hsl(215,20%,55%)';
-          ctx.font = '10px Noto Sans Devanagari';
-          ctx.textAlign = 'center';
-          const shortName = s.name.length > 4 ? s.name.substring(0, 4) + '..' : s.name;
-          ctx.fillText(shortName, gx, bc.height - 8);
-        });
-      }
+        function escJS(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-      // ============================================================
-      // TABLE
-      // ============================================================
-      let filteredData = [...landRecords];
+        // ══════════════════════════════════════════════
+        // PDF – html2canvas based (preserves Hindi text)
+        // ══════════════════════════════════════════════
 
-      function renderTable() {
-        const search = document.getElementById('tableSearch')?.value.toLowerCase() || '';
-        const vf = document.getElementById('tableVillageFilter')?.value || 'सभी';
-        filteredData = [...landRecords].filter(r => {
-          if (vf !== 'सभी' && r.village !== vf) return false;
-          if (search && !r.ownerName.includes(search) && !r.khasraNumber.toLowerCase().includes(search) && !r.village.includes(search) && !r.basraNumber.toLowerCase().includes(search)) return false;
-          return true;
-        });
-        filteredData.sort((a, b) => {
-          const cmp = String(a[tableSortKey]).localeCompare(String(b[tableSortKey]), 'hi', { numeric: true });
-          return tableSortDir === 'asc' ? cmp : -cmp;
-        });
-        const tc = document.getElementById('tableCount');
-        if (tc) tc.textContent = `${filteredData.length} रिकॉर्ड मिले`;
+        // Builds a styled printable div, captures it with html2canvas → jsPDF
+        async function captureAndDownload(el, filename) {
+            const canvas = await html2canvas(el, {
+                scale: 2.5,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.97);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const W = 210, H = 297;
+            const imgH = (canvas.height * W) / canvas.width;
+            let heightLeft = imgH, pos = 0;
+            pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH);
+            heightLeft -= H;
+            while (heightLeft > 0) {
+                pos -= H;
+                pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH);
+                heightLeft -= H;
+            }
+            pdf.save(filename);
+        }
 
-        // Update sort indicators
-        document.querySelectorAll('#dataTable th[data-col]').forEach(th => {
-          th.classList.toggle('sorted', th.dataset.col === tableSortKey);
-          th.textContent = th.textContent.replace(' ↑', '').replace(' ↓', '');
-          if (th.dataset.col === tableSortKey) th.textContent += tableSortDir === 'asc' ? ' ↑' : ' ↓';
-        });
-
-        renderTablePage();
-      }
-
-      function renderTablePage() {
-        const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-        const pageData = filteredData.slice((tablePage - 1) * PAGE_SIZE, tablePage * PAGE_SIZE);
-
-        const tbody = document.getElementById('tableBody');
-        if (!tbody) return;
-        tbody.innerHTML = pageData.length === 0 ? `<tr><td colspan="7" style="padding:48px;text-align:center;color:var(--muted-fg);">कोई रिकॉर्ड नहीं मिला</td></tr>` :
-          pageData.map(r => `
-      <tr class="${selectedRowId === r.id ? 'selected' : ''}" onclick="toggleRowExpand(${r.id})">
-        <td style="color:var(--muted-fg);">${r.serialNumber}</td>
-        <td style="font-weight:500;color:hsl(230,70%,75%);">${r.village}</td>
-        <td style="font-family:monospace;font-weight:600;font-size:13px;color:var(--fg);">${r.khasraNumber}</td>
-        <td style="color:var(--fg);">${Number(r.area).toFixed(3)} हे.</td>
-        <td style="color:var(--fg);">${r.ownerName}</td>
-        <td><span class="${isIrrigated(r.landType) ? 'badge-success' : 'badge-warning'}">${isIrrigated(r.landType) ? 'सिंचित' : 'असिंचित'}</span></td>
-        <td><div style="display:flex;gap:4px;flex-wrap:wrap;">${isGrazingLand(r) ? '<span class="badge-info" style="font-size:11px;">चराई</span>' : ''}${isCeilingLand(r) ? '<span class="badge-warning" style="font-size:11px;">सीलिंग</span>' : ''}${!isGrazingLand(r) && !isCeilingLand(r) ? '<span style="color:var(--muted-fg);">—</span>' : ''}</div></td>
-      </tr>
-      ${selectedRowId === r.id ? `
-        <tr>
-          <td colspan="7" style="background:hsla(230,70%,60%,0.05);border-top:1px solid var(--border);padding:12px 24px;">
-            <p style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--primary);">📋 विस्तृत विवरण — ${r.ownerName}</p>
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:12px;">
-              <div><span style="color:var(--muted-fg);">बसरा नं: </span><span style="color:var(--fg);">${r.basraNumber}</span></div>
-              <div><span style="color:var(--muted-fg);">निस्तार: </span><span style="color:var(--fg);">${r.nistarDetails || '—'}</span></div>
-              <div><span style="color:var(--muted-fg);">चराई: </span><span style="color:${isGrazingLand(r) ? 'hsl(142,70%,65%)' : 'var(--muted-fg)'};">${isGrazingLand(r) ? 'हाँ' : 'नहीं'}</span></div>
-              <div><span style="color:var(--muted-fg);">सीलिंग: </span><span style="color:${isCeilingLand(r) ? 'hsl(38,85%,70%)' : 'var(--muted-fg)'};">${isCeilingLand(r) ? 'हाँ' : 'नहीं'}</span></div>
+        function makePrintHeader(title, subtitle) {
+            return `
+            <div style="background:linear-gradient(135deg,#1a1a6e,#2d2db0);color:#fff;padding:22px 28px;border-radius:0;">
+                <div style="font-size:11px;opacity:0.65;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;font-family:Arial,sans-serif;">छत्तीसगढ़ शासन – राजस्व विभाग</div>
+                <div style="font-size:22px;font-weight:900;font-family:'Noto Sans Devanagari',Arial,sans-serif;margin-bottom:4px;">${title}</div>
+                <div style="font-size:13px;opacity:0.75;font-family:Arial,sans-serif;">${subtitle}</div>
             </div>
-          </td>
-        </tr>`: ''}`).join('');
+            <div style="height:4px;background:linear-gradient(90deg,#f0a500,#ffd966,#f0a500);"></div>`;
+        }
 
-        // Pagination
-        const pg = document.getElementById('pagination');
-        if (filteredData.length === 0) { pg.style.display = 'none'; return; }
-        pg.style.display = 'flex';
-        const start = Math.max(1, Math.min(tablePage - 2, totalPages - 4));
-        const pages = Array.from({ length: Math.min(5, totalPages) }, (_, i) => start + i);
-        pg.innerHTML = `
-    <p style="font-size:12px;color:var(--muted-fg);">${(tablePage - 1) * PAGE_SIZE + 1}–${Math.min(tablePage * PAGE_SIZE, filteredData.length)} / ${filteredData.length}</p>
-    <div class="page-btns">
-      <button class="page-btn" onclick="goPage(${tablePage - 1})" ${tablePage === 1 ? 'disabled' : ''}>← पिछला</button>
-      ${pages.map(p => `<button class="page-btn ${p === tablePage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`).join('')}
-      <button class="page-btn" onclick="goPage(${tablePage + 1})" ${tablePage === totalPages ? 'disabled' : ''}>अगला →</button>
-    </div>`;
-      }
+        function row2(label, value, accent) {
+            return `<tr>
+                <td style="padding:9px 14px;font-weight:700;font-size:13px;color:${accent || '#1a1a6e'};background:#f0f4ff;border:1px solid #d1d9ff;width:38%;font-family:Arial,sans-serif;">${label}</td>
+                <td style="padding:9px 14px;font-size:14px;font-weight:600;color:#1e1e3a;border:1px solid #d1d9ff;font-family:'Noto Sans Devanagari',Arial,sans-serif;">${value || '—'}</td>
+            </tr>`;
+        }
 
-      function toggleRowExpand(id) {
-        selectedRowId = selectedRowId === id ? null : id;
-        renderTablePage();
-      }
+        async function exportSinglePDF(r) {
+            toast('PDF बन रहा है...', 'info');
+            const box = document.createElement('div');
+            box.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff;font-family:"Noto Sans Devanagari",Arial,sans-serif;';
+            const date = new Date().toLocaleDateString('hi-IN');
+            box.innerHTML = `
+            <div style="width:794px;background:#fff;">
+                ${makePrintHeader('खसरा प्रमाण-पत्र', `दिनांक: ${date} &nbsp;|&nbsp; हल्का 43 एवं 28`)}
+                <div style="padding:24px 28px;">
+                    <div style="margin-bottom:16px;font-size:14px;font-weight:800;color:#1a1a6e;font-family:Arial,sans-serif;">📋 भूमि रिकॉर्ड विवरण</div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        ${row2('ग्राम', r.v)}
+                        ${row2('खसरा नंबर', r.kn)}
+                        ${row2('बसरा नंबर', r.bn)}
+                        ${row2('भूमिस्वामी का नाम', r.owner)}
+                        ${row2('क्षेत्रफल (हेक्टेयर)', r.area)}
+                        ${row2('भूमि का प्रकार', r.type)}
+                        ${r.nistar ? row2('निस्तार पत्रक विवरण', r.nistar) : ''}
+                    </table>
+                    <div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:11px;color:#78350f;font-family:Arial,sans-serif;">
+                        ⚠️ यह एक कम्प्यूटर जनित रिकॉर्ड है। सरकारी उपयोग के लिए पटवारी कार्यालय से सत्यापित करें।
+                    </div>
+                </div>
+            </div>`;
+            document.body.appendChild(box);
+            try {
+                await new Promise(r => setTimeout(r, 200));
+                await captureAndDownload(box, `खसरा_${r.v}_${r.kn}.pdf`);
+                toast('PDF डाउनलोड हो गया!', 'success');
+            } catch (e) { console.error(e); toast('PDF में त्रुटि हुई', 'error'); }
+            finally { document.body.removeChild(box); }
+        }
 
-      function sortTable(key) {
-        if (tableSortKey === key) tableSortDir = tableSortDir === 'asc' ? 'desc' : 'asc';
-        else { tableSortKey = key; tableSortDir = 'asc'; }
-        tablePage = 1;
-        renderTable();
-      }
+        async function exportPortfolioPDF(owner, village, basraNo, count, totalArea) {
+            toast('पोर्टफोलियो PDF बन रहा है...', 'info');
+            const basraRecs = records.filter(r => r.v === village && r.bn === basraNo);
+            const box = document.createElement('div');
+            box.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff;font-family:"Noto Sans Devanagari",Arial,sans-serif;';
+            const date = new Date().toLocaleDateString('hi-IN');
+            const rows = basraRecs.map((r, i) => `
+                <tr style="background:${i % 2 === 0 ? '#f7f8ff' : '#fff'}">
+                    <td style="padding:8px 10px;border:1px solid #d1d9ff;font-family:Arial,sans-serif;text-align:center;font-weight:700;">${r.kn}</td>
+                    <td style="padding:8px 10px;border:1px solid #d1d9ff;font-family:'Noto Sans Devanagari',Arial,sans-serif;">${r.owner}</td>
+                    <td style="padding:8px 10px;border:1px solid #d1d9ff;text-align:center;font-family:Arial,sans-serif;">${r.area}</td>
+                    <td style="padding:8px 10px;border:1px solid #d1d9ff;font-family:'Noto Sans Devanagari',Arial,sans-serif;">${r.type}</td>
+                    <td style="padding:8px 10px;border:1px solid #d1d9ff;font-size:11px;font-family:'Noto Sans Devanagari',Arial,sans-serif;">${r.nistar || '—'}</td>
+                </tr>`).join('');
 
-      function filterTable() {
-        tablePage = 1;
-        renderTable();
-      }
+            box.innerHTML = `
+            <div style="width:794px;background:#fff;">
+                ${makePrintHeader('भूमिस्वामी पोर्टफोलियो रिपोर्ट', `ग्राम: ${village} &nbsp;|&nbsp; बसरा: ${basraNo} &nbsp;|&nbsp; दिनांक: ${date}`)}
+                <div style="padding:20px 28px;">
+                    <div style="background:#f0f4ff;border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:16px;">
+                        <div style="flex:1;min-width:180px;">
+                            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.07em;font-family:Arial;">भूमिस्वामी</div>
+                            <div style="font-size:18px;font-weight:900;color:#1a1a6e;margin-top:4px;font-family:'Noto Sans Devanagari',Arial,sans-serif;">${owner}</div>
+                        </div>
+                        <div style="text-align:center;padding:0 20px;">
+                            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;font-family:Arial;">कुल खसरा</div>
+                            <div style="font-size:28px;font-weight:900;color:#1a1a6e;font-family:Arial;">${count}</div>
+                        </div>
+                        <div style="text-align:center;padding:0 20px;">
+                            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;font-family:Arial;">कुल क्षेत्रफल (हे.)</div>
+                            <div style="font-size:28px;font-weight:900;color:#1a1a6e;font-family:Arial;">${totalArea}</div>
+                        </div>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr style="background:#1a1a6e;color:#fff;">
+                            <th style="padding:10px;font-size:12px;font-family:Arial;border:1px solid #1a1a6e;">खसरा नं.</th>
+                            <th style="padding:10px;font-size:12px;font-family:'Noto Sans Devanagari',Arial;border:1px solid #1a1a6e;">भूमिस्वामी</th>
+                            <th style="padding:10px;font-size:12px;font-family:Arial;border:1px solid #1a1a6e;">क्षेत्रफल</th>
+                            <th style="padding:10px;font-size:12px;font-family:'Noto Sans Devanagari',Arial;border:1px solid #1a1a6e;">प्रकार</th>
+                            <th style="padding:10px;font-size:12px;font-family:'Noto Sans Devanagari',Arial;border:1px solid #1a1a6e;">निस्तार</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <div style="margin-top:20px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:11px;color:#78350f;font-family:Arial,sans-serif;">
+                        ⚠️ यह कम्प्यूटर जनित रिकॉर्ड है। सरकारी उपयोग हेतु पटवारी कार्यालय से सत्यापित करें।
+                    </div>
+                </div>
+            </div>`;
+            document.body.appendChild(box);
+            try {
+                await new Promise(r => setTimeout(r, 200));
+                await captureAndDownload(box, `पोर्टफोलियो_${village}_बसरा${basraNo}.pdf`);
+                toast('पोर्टफोलियो PDF डाउनलोड हो गया!', 'success');
+            } catch (e) { console.error(e); toast('पोर्टफोलियो PDF में त्रुटि हुई', 'error'); }
+            finally { document.body.removeChild(box); }
+        }
 
-      function goPage(p) {
-        const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-        if (p < 1 || p > totalPages) return;
-        tablePage = p;
-        renderTablePage();
-      }
+        // ── Init ──────────────────────────────────────
+        loadData();
 
-      function exportCSV() {
-        const headers = ['क्रमांक', 'ग्राम', 'खसरा', 'बसरा', 'क्षेत्रफल', 'भूमिस्वामी', 'प्रकार', 'चराई', 'सीलिंग'];
-        const rows = filteredData.map(r => [r.serialNumber, r.village, r.khasraNumber, r.basraNumber, r.area, r.ownerName, r.landType, isGrazingLand(r) ? 'हाँ' : 'नहीं', isCeilingLand(r) ? 'हाँ' : 'नहीं']);
-        const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bhoomi-records.csv'; a.click();
-      }
-
-      // ============================================================
-      // PRINT
-      // ============================================================
-      function printRecord(id) {
-        const r = landRecords.find(x => x.id === id);
-        if (!r) return;
-        const w = window.open('', '_blank');
-        w.document.write(`<!DOCTYPE html><html lang="hi"><head><meta charset="UTF-8"><title>भूमि रिकॉर्ड</title>
-  <style>body{font-family:Segoe UI,sans-serif;padding:40px;color:#1a1a1a;}h1{text-align:center;font-size:22px;margin-bottom:4px;}.sub{text-align:center;font-size:14px;color:#555;margin-bottom:30px;}table{width:100%;border-collapse:collapse;margin-top:10px;}th,td{border:1px solid #ccc;padding:10px 14px;text-align:left;font-size:14px;}th{background:#f0f0f0;font-weight:600;width:40%;}.footer{margin-top:30px;text-align:center;font-size:11px;color:#999;}</style>
-  </head><body>
-  <h1>🌾 भूमि रिकॉर्ड विवरण</h1>
-  <p class="sub">${r.village} — खसरा ${r.khasraNumber}</p>
-  <table>
-    <tr><th>क्रमांक</th><td>${r.serialNumber}</td></tr>
-    <tr><th>ग्राम</th><td>${r.village}</td></tr>
-    <tr><th>खसरा नंबर</th><td>${r.khasraNumber}</td></tr>
-    <tr><th>बसरा नंबर</th><td>${r.basraNumber}</td></tr>
-    <tr><th>क्षेत्रफल</th><td>${Number(r.area).toFixed(3)} हेक्टेयर</td></tr>
-    <tr><th>भूमिस्वामी</th><td>${r.ownerName}</td></tr>
-    <tr><th>भूमि प्रकार</th><td>${r.landType}</td></tr>
-    <tr><th>निस्तार विवरण</th><td>${r.nistarDetails || '—'}</td></tr>
-  </table>
-  <p class="footer">भूमि रिकॉर्ड डैशबोर्ड से निर्यात किया गया</p>
-  <script>window.onload=function(){window.print();}<\/script>
-  </body></html>`);
-        w.document.close();
-      }
-
-      function printBasraResult() {
-        const records = window._basraRecords || [];
-        if (!records.length) return;
-        const rowsHtml = records.map((r, i) => `<tr><td>${i + 1}</td><td>${r.khasraNumber}</td><td>${Number(r.area).toFixed(3)}</td><td>${r.ownerName}</td><td>${r.landType || '—'}</td><td>${isIrrigated(r.landType) ? 'सिंचित' : 'असिंचित'}</td><td>${isGrazingLand(r) ? 'हाँ' : 'नहीं'}</td><td>${r.nistarDetails || '—'}</td></tr>`).join('');
-        const w = window.open('', '_blank');
-        w.document.write(`<!DOCTYPE html><html lang="hi"><head><meta charset="UTF-8"><title>बसरा पोर्टफोलियो</title>
-  <style>body{font-family:Segoe UI,sans-serif;padding:30px;color:#1a1a1a;}h1{text-align:center;font-size:20px;}table{width:100%;border-collapse:collapse;font-size:13px;}th,td{border:1px solid #ccc;padding:8px 10px;}th{background:#f0f0f0;}</style>
-  </head><body>
-  <h1>🌾 बसरा पोर्टफोलियो — ${selectedVillage} — बसरा ${selectedBasra}</h1>
-  <table><thead><tr><th>#</th><th>खसरा</th><th>क्षेत्रफल (हे.)</th><th>भूमिस्वामी</th><th>भूमि प्रकार</th><th>सिंचाई</th><th>चराई</th><th>निस्तार</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-  <script>window.onload=function(){window.print();}<\/script>
-  </body></html>`);
-        w.document.close();
-      }
-
-      // Close dropdowns on outside click
-      document.addEventListener('click', e => {
-        if (!e.target.closest('.dropdown-wrap')) closeAllDropdowns();
-      });
-
-      // ============================================================
-      // INIT — Google Sheets se data load karke sab initialize karo
-      // ============================================================
-      function initAll() {
-        initDashboard();
-        initSearch();
-        renderTable();
-        const tvf = document.getElementById('tableVillageFilter');
-        if (tvf) tvf.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join('');
-        const vf2 = document.getElementById('villageFilter2');
-        if (vf2) vf2.innerHTML = `<option value="सभी">सभी ग्राम</option>` + VILLAGES.map(v => `<option value="${v}">${v}</option>`).join('');
-      }
-
-      window.addEventListener('DOMContentLoaded', async () => {
-        const ok = await loadFromGoogleSheets();
-        if (ok) initAll();
-      });
     </script>
-  </div><!-- end #app -->
 </body>
 
 </html>
