@@ -838,320 +838,119 @@
             Toastify({ text: msg, duration: 3500, gravity: 'top', position: 'right', style: { background: bg[type] || bg.info, borderRadius: '10px', fontWeight: '700', fontSize: '14px' } }).showToast();
         }
 
-        // ══════════════════════════════════════════════════════════════
-        // ── नई Multi-Tab Google Sheet Config ───────────────────────
-        // ══════════════════════════════════════════════════════════════
-        // Published base URL (File → Share → Publish to web से मिला)
-        const PUBLISHED_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRImiJKxrvQj1NGbSRosAN1hRcqDEZF9Bvaucffx_Qq-iLgFQcgt2q3qzef1diUmjwa4eNVfgO6XuwG/pub';
+        // ── CSV Loader ─────────────────────────────────────────────
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7w0RI9RMbD3vx841C6CHzFyHwwbX2L5zyhjabc2ov7AvR7OWzJfXgvbiPvV6oXvhJZj5RCmcOzq2r/pub?gid=1438447251&single=true&output=csv";
 
-        // हर गाँव के लिए tab GIDs
-        const VILLAGE_TABS = {
-            'छेरकापुर': {
-                halka: 28,
-                khasra:        1125745063,
-                dcsKharif:      812281055,
-                dcsRabi:        500848412,
-                bhuiyya:        297442845,
-                charaiCeiling: 1665923394,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
-                nistarPatrak:  1804672264,   // निस्तार पत्रक डिटेल्स
-            },
-            'छड़िया': {
-                halka: 28,
-                khasra:        1702197918,
-                dcsKharif:        8447409,
-                dcsRabi:       1499142573,
-                bhuiyya:       1174875375,
-                charaiCeiling: 1740498830,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
-                nistarPatrak:  1031814681,   // निस्तार पत्रक डिटेल्स
-            },
-            'तिल्दा': {
-                halka: 43,
-                khasra:         405640121,
-                dcsKharif:      747813224,
-                dcsRabi:       1746853077,
-                bhuiyya:       1408389150,
-                charaiCeiling: 1518461563,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
-                nistarPatrak:   795996909,   // निस्तार पत्रक डिटेल्स
-            },
-            'गबौद': {
-                halka: 43,
-                khasra:         420059656,
-                dcsKharif:      153278540,
-                dcsRabi:        459902298,
-                bhuiyya:         29039308,
-                charaiCeiling:  602533391,   // चराई सीलिंग एवं सिंचित असिंचित डाटा
-                nistarPatrak:  2065179140,   // निस्तार पत्रक डिटेल्स
-            },
-        };
+        function processCSVResults(results) {
+            if (!results.data || results.data.length === 0) return false;
+            
+            // Log first data row to find exact duplicate column keys
+            if (results.data.length > 1) console.log('Column keys:', Object.keys(results.data[1]));
 
-        // Published CSV URL बनाने का helper
-        function makeCSVUrl(gid) {
-            return `${PUBLISHED_BASE}?gid=${gid}&single=true&output=csv`;
-        }
-
-        // Proxy race से एक CSV text लाना
-        const PROXY_PREFIXES = [
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest=',
-            'https://corsproxy.io/?',
-        ];
-
-        function fetchCSV(gid) {
-            const csvUrl = makeCSVUrl(gid);
-            const proxied = PROXY_PREFIXES.map(p =>
-                fetch(p + encodeURIComponent(csvUrl), { signal: AbortSignal.timeout(15000) })
-                    .then(r => { if (!r.ok) throw new Error('Not OK'); return r.text(); })
-            );
-            const direct = new Promise((res, rej) => {
-                Papa.parse(csvUrl, {
-                    download: true, header: false, skipEmptyLines: false,
-                    complete: (result) => res(Papa.unparse(result.data)),
-                    error: rej,
-                });
-            });
-            return new Promise((resolve, reject) => {
-                let failCount = 0;
-                const all = [...proxied, direct];
-                all.forEach(p => p.then(resolve).catch(() => {
-                    failCount++;
-                    if (failCount === all.length) reject(new Error(`CSV fetch failed gid=${gid}`));
-                }));
-            });
-        }
-
-        // CSV text → array of objects (header = row 1 by default, or custom headerRow index)
-        function parseCSVToRows(csvText, headerRowIndex = 0) {
-            const allRows = Papa.parse(csvText, { header: false, skipEmptyLines: 'greedy' }).data;
-            if (allRows.length <= headerRowIndex) return [];
-            const headers = allRows[headerRowIndex];
-            return allRows.slice(headerRowIndex + 1).map(row => {
-                const obj = {};
-                headers.forEach((h, i) => { obj[h.trim()] = (row[i] || '').trim(); });
-                return obj;
-            });
-        }
-
-        // ── एक गाँव का मर्ज: खसरा लिस्ट + DCS खरीफ + DCS रबी + भुइया खरीफ + चराई/सीलिंग + निस्तार पत्रक ──
-        function mergeVillageData(villageName, halka, khasraRows, dcsKRows, dcsRRows, bhuiyyaRows, charaiRows = [], nistarRows = []) {
-            const vLabel = `${villageName} (हल्का ${halka})`;
-
-            // DCS खरीफ lookup: Survey Number → row (एक खसरे पर एक ही DCS row लेंगे)
-            const dcsKMap = {};
-            dcsKRows.forEach(row => {
-                const sn = (row['Survey Number'] || '').trim();
-                if (sn && !dcsKMap[sn]) dcsKMap[sn] = row;
-            });
-
-            // DCS रबी lookup: Survey Number → row
-            const dcsRMap = {};
-            dcsRRows.forEach(row => {
-                const sn = (row['Survey Number'] || '').trim();
-                if (sn && !dcsRMap[sn]) dcsRMap[sn] = row;
-            });
-
-            // भुइया खरीफ lookup: खसरा क्रमांक → row
-            const bhuiyyaMap = {};
-            bhuiyyaRows.forEach(row => {
-                const kn = (row['खसरा क्रमांक'] || '').trim();
-                if (kn && !bhuiyyaMap[kn]) bhuiyyaMap[kn] = row;
-            });
-
-            // helper: किसी row से multiple possible column names में से पहला valid value निकालना
-            function getCol(row, ...keys) {
-                if (!row) return '';
-                for (const k of keys) {
-                    const v = row[k];
-                    if (v !== undefined && v !== null && v.toString().trim() !== '') return v.toString().trim();
-                }
-                return '';
-            }
-
-            // चराई/सीलिंग lookup: खसरा नंबर → row
-            // तिल्दा में 'खसरा नम्बर' (anunasik 'म' variant) है, बाकी में 'खसरा नंबर'
-            const charaiMap = {};
-            charaiRows.forEach(row => {
-                const kn = getCol(row, 'खसरा नंबर', 'खसरा नम्बर', 'खसरा नम्‍बर');
-                if (kn && !charaiMap[kn]) charaiMap[kn] = row;
-            });
-
-            // निस्तार पत्रक lookup: खसरा नंबर → row (only special/nistar entries)
-            const nistarMap = {};
-            nistarRows.forEach(row => {
-                const kn = getCol(row, 'खसरा नंबर', 'खसरा नम्बर', 'खसरा नम्‍बर');
-                if (kn && !nistarMap[kn]) nistarMap[kn] = row;
-            });
-
-            function isBl(v) { return v === null || v === undefined || v === ''; }
-
-            return khasraRows.map((o, i) => {
-                const kn   = (o['खसरा नंबर'] || '').trim();
-                const bn   = (o['बसरा नंबर'] || '').trim();
-                const ownerRaw = (o['नाम'] || 'अज्ञात').trim();
-                const ownerKey = ownerRaw.replace(/\r/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-
-                // owner names extraction (same logic as before)
-                const nameMatches = [...ownerRaw.matchAll(/नाम\s*[-–]\s*([^\n\r,;]+)/g)];
+            records = results.data.map((o, i) => {
+                // owner: raw CSV value (full, for display in khasra/basra results)
+                let ownerRaw = o['भूमिस्वामी का नाम'] || 'अज्ञात';
+                // ownerKey: cleaned single-line (normalized spaces, for search & escJS)
+                let ownerKey = ownerRaw.replace(/\r/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                // ownerNames: all individual names extracted (for naam search datalist & matching)
+                const nameMatches = [...ownerRaw.matchAll(/नाम\s*[-–]\s*([^\n\r]+)/g)];
                 let ownerNames = nameMatches.map(m => m[1].trim()).filter(Boolean);
                 if (ownerNames.length === 0) {
-                    const fallback = ownerRaw.split(/[\r\n]/)[0].replace(/^\(\d+\)/, '').trim();
+                    // Fallback: use first line without leading (1) prefix
+                    const fallback = ownerRaw.split(/\r?\n/)[0].replace(/^\(\d+\)/, '').trim();
                     if (fallback) ownerNames = [fallback];
                 }
 
-                // ── DCS खरीफ data ──
-                const dk = dcsKMap[kn] || null;
-                const rawK  = dk ? (dk['Crop Name']    || '') : null;   // kharif fasal
-                const rawL  = dk ? (dk['Plot Area']     || '') : null;   // plot area
-                const rawM  = dk ? (dk['Crop Area']     || '') : null;   // crop area
-                const rawN  = dk ? (dk['NA Land']       || '') : null;
-                const rawO  = dk ? (dk['NA Area']       || '') : null;
-                const rawP  = dk ? (dk['Fallow Land']   || '') : null;
-                const rawQ  = dk ? (dk['Fallow Area']   || '') : null;
+                let v = o['ग्राम'] || '';
+                if (v === 'गबौद' || v === 'तिल्दा') v += ' (हल्का 43)';
+                else if (v === 'छड़िया' || v === 'छेरकापुर') v += ' (हल्का 28)';
 
-                // ── DCS रबी data ──
-                const dr = dcsRMap[kn] || null;
-                const rawR  = dr ? (dr['Crop Name']    || '') : null;   // rabi fasal
-                const rawT  = dr ? (dr['Crop Area']     || '') : null;
-                const rawU  = dr ? (dr['NA Land']       || '') : null;
-                const rawV  = dr ? (dr['NA Area']       || '') : null;
-                const rawW  = dr ? (dr['Fallow Land']   || '') : null;
-                const rawX  = dr ? (dr['Fallow Area']   || '') : null;
+                let nistarText = o['निस्तार पत्रक विवरण'] || '';
+                
+                // ── खरीफ block (columns K, M, N, O, P, Q) ──
+                let kharifCrop    = (o['खरीफ DCS में फसल '] || '').trim();
+                let kharifCropArea = parseFloat(o['Crop Area'] || 0);   // Col M — Kharif Crop Area
+                let naLandK       = (o['NA Land'] || '').trim();          // Col N
+                let naAreaK       = parseFloat(o['NA Area'] || 0);        // Col O
+                let fallowLandK   = (o['Fallow Land'] || '').trim();      // Col P
+                let fallowAreaK   = parseFloat(o['Fallow Area'] || 0);    // Col Q
 
-                // ── भुइया खरीफ data ──
-                const bh = bhuiyyaMap[kn] || null;
-                const cropNameZ     = bh ? (bh['फसल का नाम'] || '').trim() : '';
-                const rakbaSinchit  = bh ? parseFloat(bh['रकबा सिंचित फसल']  || 0) : 0;
-                const rakbaAsinchit = bh ? parseFloat(bh['रकबा असिंचित फसल'] || 0) : 0;
+                // ── रबी block (columns R, T, U, V, W, X) ──
+                let rabiCrop      = (o['रबी DCS में फसल '] || o['रबी DCS में फसल_1'] || o['रबी DCS में फसल 1'] || o['रबी DCS में फसल_R'] || '').trim();
+                let rabiCropArea  = parseFloat(o['Crop Area_1'] || o['Crop Area 1'] || o['Crop Area_R'] || 0);  // Col T — Rabi Crop Area
+                let naLandR       = (o['NA Land_1'] || o['NA Land 1'] || o['NA Land_R'] || '').trim();        // Col U
+                let naAreaR       = parseFloat(o['NA Area_1'] || o['NA Area 1'] || o['NA Area_R'] || 0);      // Col V
+                let fallowLandR   = (o['Fallow Land_1'] || o['Fallow Land 1'] || o['Fallow Land_R'] || '').trim();    // Col W
+                let fallowAreaR   = parseFloat(o['Fallow Area_1'] || o['Fallow Area 1'] || o['Fallow Area_R'] || 0);  // Col X
 
-                // ── चराई/सीलिंग/सिंचित-असिंचित data ──
-                const ch = charaiMap[kn] || null;
-                // सिंचित/असिंचित: गबौद में 'सिंचित'/'असिंचित' (बिना 'भूमि'), बाकी में 'सिंचित भूमि'/'असिंचित भूमि'
-                const sinchaiRaw    = getCol(ch, 'सिंचित / असिंचित');
-                const sinchaiType   = sinchaiRaw;
-                const charaiLand    = getCol(ch, 'चराई भूमि है ?');
-                const ceilingLand   = getCol(ch, 'सीलिंग भूमि है ?', 'सीलिंग भूमि है?');
-                // निस्तार विवरण column का नाम tabs में अलग-अलग है
-                const nistarVivaran = getCol(ch,
-                    'निस्तार पत्रक / वाजिबुल अर्ज विवरण',
-                    'निस्तार पत्रक विवरण',
-                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज',
-                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज ',
-                    'निस्तार पत्रक विवरण/वाजिबुल अर्ज विवरण'
-                );
+                // --- New explicit Raw Data Fields needed for the 'DCS Nahi' flag check ---
+                let rawKharifDCS = kharifCrop; // Since kharifCrop is already exactly 'o['खरीफ DCS में फसल ']'
+                let rawRabiDCS = rabiCrop;   // Same logic for Rabi
 
-                // ── निस्तार पत्रक tab – special nistar entry check ──
-                const ns = nistarMap[kn] || null;
-                const isNistarEntry = !!ns;   // true if this khasra has a dedicated nistar record
-                const nistarPatrakVivaran = getCol(ns,
-                    'निस्तार पत्रक / वाजिबुल अर्ज विवरण',
-                    'निस्तार पत्रक विवरण',
-                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज',
-                    'निस्तार पत्रक विवरण / वाजिबुल अर्ज ',
-                    'निस्तार पत्रक विवरण/वाजिबुल अर्ज विवरण'
-                );
+                // ── फसल का नाम (Col Z — Kharif fallback only) ──
+                let cropNameZ     = (o['फसल का नाम'] || '').trim();
 
-                // ── DCS blank check (same logic) ──
-                const kharifDCSBlank = !dk;   // DCS खरीफ tab में entry नहीं = blank
-                const rabiDCSBlank   = !dr;   // DCS रबी tab में entry नहीं = blank
-
-                // ── Kharif fasal + source ──
+                // खरीफ फसल: पहले Col K, अगर blank/'--' तो Col Z (फसल का नाम)
                 let finalKharifCrop = '';
-                let kharifSource    = '';
-                let rawKharifDCS    = '';
-                if (!kharifDCSBlank) {
-                    rawKharifDCS = (rawK || '').toString().trim();
-                    if (rawKharifDCS && rawKharifDCS !== '--') {
-                        finalKharifCrop = rawKharifDCS;
-                    }
-                    kharifSource = 'DCS';
-                } else {
-                    if (cropNameZ && cropNameZ !== '--' && !cropNameZ.includes('पडत भूमि')) {
-                        finalKharifCrop = cropNameZ;
-                        kharifSource    = 'Bhuiyya';
-                    }
+                if (kharifCrop && kharifCrop !== '--') {
+                    finalKharifCrop = kharifCrop;
+                } else if (cropNameZ && cropNameZ !== '--') {
+                    finalKharifCrop = cropNameZ;
                 }
-
-                // ── Kharif area ──
-                const kharifCropAreaDCS = parseFloat(rawM || 0);
-                const kharifCropArea = !kharifDCSBlank
-                    ? kharifCropAreaDCS
-                    : (rakbaSinchit > 0 ? rakbaSinchit : rakbaAsinchit);
-
-                // ── NA / Fallow खरीफ ──
-                const naLandK    = (rawN  || '').toString().trim();
-                const naAreaK    = parseFloat(rawO  || 0);
-                const fallowLandK= (rawP  || '').toString().trim();
-                const fallowAreaK= parseFloat(rawQ  || 0);
-
-                // ── Rabi fasal ──
+                
+                // रबी फसल: केवल Col R से, Col Z से fallback नहीं
                 let finalRabiCrop = '';
-                let rawRabiDCS    = '';
-                if (!rabiDCSBlank) {
-                    rawRabiDCS = (rawR || '').toString().trim();
-                    if (rawRabiDCS && rawRabiDCS !== '--') {
-                        finalRabiCrop = rawRabiDCS;
-                    }
+                if (rabiCrop && rabiCrop !== '--') {
+                    finalRabiCrop = rabiCrop;
                 }
 
-                // ── Rabi area + NA/Fallow ──
-                const rabiCropArea = parseFloat(rawT || 0);
-                const naLandR    = (rawU  || '').toString().trim();
-                const naAreaR    = parseFloat(rawV  || 0);
-                const fallowLandR= (rawW  || '').toString().trim();
-                const fallowAreaR= parseFloat(rawX  || 0);
+                // Determine dufasali (double crop)
+                let isDufasali = (finalKharifCrop !== '' && finalRabiCrop !== '');
 
-                // ── Dufasali ──
-                const isDufasali   = (finalKharifCrop !== '' && finalRabiCrop !== '');
-                const dufasaliArea = isDufasali ? Math.min(kharifCropArea, rabiCropArea) : 0;
+                // दुफसली रकबा = दोनों Crop Area में से छोटा
+                let dufasaliArea = isDufasali ? Math.min(kharifCropArea, rabiCropArea) : 0;
 
                 return {
                     id: i + 1,
-                    v: vLabel,
-                    kn: kn,
-                    bn: bn,
-                    owner:      ownerRaw || 'अज्ञात',
-                    ownerKey:   ownerKey || 'अज्ञात',
+                    v: v,
+                    kn: o['खसरा नंबर'] || '',
+                    bn: o['बसरा नंबर'] || '',
+                    owner: ownerRaw || 'अज्ञात',
+                    ownerKey: ownerKey || 'अज्ञात',
                     ownerNames: ownerNames.length ? ownerNames : ['अज्ञात'],
-                    area:  parseFloat(o['क्षेत्रफल'] || 0).toFixed(3),
-                    type:  sinchaiType,          // चराई/सीलिंग tab से सिंचित/असिंचित
-                    nistar: nistarVivaran,        // चराई/सीलिंग tab से निस्तार विवरण
-                    charai:  charaiLand,          // चराई भूमि है?
-                    ceiling: ceilingLand,         // सीलिंग भूमि है?
-                    isNistarEntry:        isNistarEntry,          // निस्तार पत्रक tab में entry है?
-                    nistarPatrakVivaran:  nistarPatrakVivaran,    // निस्तार पत्रक tab का विशेष विवरण
-
-                    kharifDCSBlank:  kharifDCSBlank,
-                    rabiDCSBlank:    rabiDCSBlank,
-                    kharifSource:    kharifSource,
-                    rawKharifDCS:    rawKharifDCS,
-                    rawRabiDCS:      rawRabiDCS,
+                    area: parseFloat(o['क्षेत्रफल'] || 0).toFixed(3),
+                    type: o['सिंचित / असिंचित'] || '',
+                    nistar: nistarText,
+                    charai: o['चराई भूमि है ?'] || '',
+                    ceiling: o['सीलिंग भूमि है ?'] || '',
+                    
+                    // नई फसल fields:
+                    rawKharifDCS: rawKharifDCS,
+                    rawRabiDCS: rawRabiDCS,
                     finalKharifCrop: finalKharifCrop,
-                    kharifCropArea:  kharifCropArea.toFixed(3),
-                    finalRabiCrop:   finalRabiCrop,
-                    rabiCropArea:    rabiCropArea.toFixed(3),
-                    isDufasali:      isDufasali,
-                    dufasaliArea:    dufasaliArea.toFixed(3),
-                    naLandK:    naLandK,  naAreaK:    naAreaK.toFixed(3),
-                    fallowLandK: fallowLandK, fallowAreaK: fallowAreaK.toFixed(3),
-                    naLandR:    naLandR,  naAreaR:    naAreaR.toFixed(3),
-                    fallowLandR: fallowLandR, fallowAreaR: fallowAreaR.toFixed(3),
+                    kharifCropArea: kharifCropArea.toFixed(3),
+                    finalRabiCrop: finalRabiCrop,
+                    rabiCropArea: rabiCropArea.toFixed(3),
+                    isDufasali: isDufasali,
+                    dufasaliArea: dufasaliArea.toFixed(3),
+                    
+                    // खरीफ NA/Fallow:
+                    naLandK: naLandK,
+                    naAreaK: naAreaK.toFixed(3),
+                    fallowLandK: fallowLandK,
+                    fallowAreaK: fallowAreaK.toFixed(3),
+                    
+                    // रबी NA/Fallow:
+                    naLandR: naLandR,
+                    naAreaR: naAreaR.toFixed(3),
+                    fallowLandR: fallowLandR,
+                    fallowAreaR: fallowAreaR.toFixed(3),
                 };
             }).filter(r => r.v && r.kn);
+            return records.length > 0;
         }
 
-        let cachedRecords = null;
-
-        async function loadData() {
-            // Cached data instantly return
-            if (cachedRecords) {
-                records = cachedRecords;
-                fillVillages();
-                const badge = document.getElementById('recordCountBadge');
-                badge.textContent = `✅ ${records.length} रिकॉर्ड लोड (कैशड)`;
-                toast(`${records.length} रिकॉर्ड कैश से प्राप्त हुए`, 'success');
-                switchTab('statistics');
-                return records;
-            }
-
+        function loadData() {
             const badge = document.getElementById('recordCountBadge');
             badge.textContent = '⏳ डेटा लोड हो रहा है...';
 
@@ -1161,55 +960,42 @@
                 toast(`${records.length} रिकॉर्ड सफलतापूर्वक लोड हुए`, 'success');
                 switchTab('statistics');
             }
-
             function onError(msg) {
-                console.error('onError called:', msg);
-                badge.innerHTML = `❌ लोड विफल &nbsp;<button onclick="loadData()" style="background:#1a1a6e;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;">🔄 पुनः प्रयास</button>
-                <input type="file" id="manualCSV" style="display:none" onchange="handleManualUpload(event)">
-                <button onclick="document.getElementById('manualCSV').click()" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;margin-left:5px;">📁 फाइल अपलोड</button>`;
+                badge.innerHTML = `❌ लोड विफल &nbsp;<button onclick="loadData()" style="background:#1a1a6e;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700;">🔄 पुनः प्रयास</button>`;
                 toast(msg || 'नेटवर्क त्रुटि — कृपया इंटरनेट जांचें', 'error');
             }
 
-            // Step 1: Try parallel fetching of local/proxied CSV
-            try {
-                const PROXY1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL);
-                const PROXY2 = 'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL);
-
-                const response = await Promise.any([
-                    fetch(PROXY1),
-                    fetch(PROXY2)
-                ]);
-
-                if (!response.ok) throw new Error('Proxy failed');
-                const csvText = await response.text();
-                const result = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' });
-                if (processCSVResults(result)) {
-                    cachedRecords = records;
-                    onSuccess();
-                } else {
-                    throw new Error('Data processing failed');
-                }
-
-            } catch (e) {
-                console.warn('Proxy fetch failed, trying direct PapaParse...', e);
-                // Fallback to direct download
-                Papa.parse(SHEET_URL, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: 'greedy',
-                    complete: function (results) {
-                        if (processCSVResults(results)) {
-                            cachedRecords = records;
-                            onSuccess();
-                        } else {
-                            onError('डेटा पार्स विफल (Empty results)');
-                        }
-                    },
-                    error: function (err) {
-                        onError('नेटवर्क त्रुटि — कृपया इंटरनेट जांचें');
-                    }
-                });
+            // CORS-safe proxy chain for file:// protocol support
+            function tryParse(csvText) {
+                const r = Papa.parse(csvText, { header: true, skipEmptyLines: 'greedy' });
+                return processCSVResults(r);
             }
+
+            const PROXY1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEET_URL);
+            const PROXY2 = 'https://corsproxy.io/?' + encodeURIComponent(SHEET_URL);
+
+            // Step 1: Try allorigins.win proxy
+            fetch(PROXY1)
+                .then(res => { if (!res.ok) throw new Error('p1'); return res.text(); })
+                .then(csv => { if (tryParse(csv)) onSuccess(); else throw new Error('parse'); })
+                .catch(() => {
+                    // Step 2: Try corsproxy.io
+                    fetch(PROXY2)
+                        .then(res => { if (!res.ok) throw new Error('p2'); return res.text(); })
+                        .then(csv => { if (tryParse(csv)) onSuccess(); else throw new Error('parse'); })
+                        .catch(() => {
+                            // Step 3: PapaParse direct download (last resort)
+                            Papa.parse(SHEET_URL, {
+                                download: true, header: true, worker: false,
+                                skipEmptyLines: 'greedy',
+                                complete: function (results) {
+                                    if (processCSVResults(results)) onSuccess();
+                                    else onError('डेटा लोड विफल — "पुनः प्रयास" बटन दबाएं');
+                                },
+                                error: function () { onError('नेटवर्क त्रुटि — कृपया इंटरनेट जांचें'); }
+                            });
+                        });
+                });
         }
 
         function fillVillages() {
